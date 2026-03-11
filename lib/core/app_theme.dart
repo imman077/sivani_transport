@@ -10,7 +10,6 @@ class AppTheme {
         seedColor: AppColors.primary,
         primary: AppColors.primary,
         surface: AppColors.surface,
-        background: AppColors.background,
       ),
       scaffoldBackgroundColor: AppColors.background,
       textTheme: GoogleFonts.interTextTheme().copyWith(
@@ -22,16 +21,16 @@ class AppTheme {
           fontWeight: FontWeight.bold,
           color: AppColors.textPrimary,
         ),
-        bodyLarge: GoogleFonts.inter(
-          color: AppColors.textPrimary,
-        ),
-        bodyMedium: GoogleFonts.inter(
-          color: AppColors.textSecondary,
-        ),
+        bodyLarge: GoogleFonts.inter(color: AppColors.textPrimary),
+        bodyMedium: GoogleFonts.inter(color: AppColors.textSecondary),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.inputFill,
+        hintStyle: TextStyle(
+          color: AppColors.textSecondary.withValues(alpha: 0.5),
+          fontSize: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.inputBorder),
@@ -44,7 +43,10 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

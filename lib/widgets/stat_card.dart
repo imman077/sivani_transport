@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 class StatCard extends StatelessWidget {
   final String title;
   final String value;
-  final String percentage;
-  final bool isPositive;
   final IconData icon;
   final Color iconBg;
   final Color iconColor;
@@ -13,8 +11,6 @@ class StatCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.value,
-    required this.percentage,
-    required this.isPositive,
     required this.icon,
     required this.iconBg,
     required this.iconColor,
@@ -23,53 +19,70 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Stack(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueGrey.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isPositive ? Colors.green.shade50 : Colors.red.shade50,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                percentage,
-                style: TextStyle(
-                  color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBg.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              ),
+              ],
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: Color(0xFF1A1C1E),
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade400,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
