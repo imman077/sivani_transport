@@ -82,6 +82,8 @@ class _VehiclesPageState extends State<VehiclesPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (context) => const AddVehicleSheet(),
     );
@@ -94,10 +96,10 @@ class _VehiclesPageState extends State<VehiclesPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () {},
-        ),
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+        //   onPressed: () {},
+        // ),
         title: const Text(
           'Vehicle Management',
           style: TextStyle(
@@ -413,164 +415,146 @@ class AddVehicleSheet extends StatefulWidget {
 
 class _AddVehicleSheetState extends State<AddVehicleSheet> {
   String _selectedFuel = 'Diesel';
+  bool _isLoading = false;
+
+  void _handleAddVehicle() async {
+    setState(() => _isLoading = true);
+    // Simulate network delay
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (mounted) {
+      setState(() => _isLoading = false);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vehicle added successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height,
       decoration: const BoxDecoration(color: Colors.white),
-      child: Column(
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                const Text(
-                  'Add Vehicle',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
                 children: [
-                  const Text(
-                    'Vehicle Info',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Enter the vehicle details below.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  AppTextField(
-                    label: 'Vehicle Number',
-                    hint: 'e.g. ABC-1234',
-                    prefixIcon: Icons.numbers_outlined,
-                  ),
-                  const SizedBox(height: 20),
-                  AppTextField(
-                    label: 'Model',
-                    hint: 'e.g. Toyota Camry',
-                    prefixIcon: Icons.directions_car_outlined,
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Fuel Type',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      _buildFuelOption('Diesel', Icons.gas_meter_outlined),
-                      const SizedBox(width: 12),
-                      _buildFuelOption(
-                        'Petrol',
-                        Icons.local_gas_station_outlined,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildFuelOption('Electric', Icons.bolt_outlined),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // _buildLabel('Primary Driver Assignment'),
-                  // DropdownButtonFormField<String>(
-                  //   decoration: InputDecoration(
-                  //     prefixIcon: const Icon(Icons.person_outline),
-                  //     fillColor: Colors.white,
-                  //     filled: true,
-                  //     border: OutlineInputBorder(
-                  //       borderRadius: BorderRadius.circular(12),
-                  //       borderSide: BorderSide(color: Colors.grey.shade200),
-                  //     ),
-                  //     enabledBorder: OutlineInputBorder(
-                  //       borderRadius: BorderRadius.circular(12),
-                  //       borderSide: BorderSide(color: Colors.grey.shade200),
-                  //     ),
-                  //   ),
-                  //   hint: const Text('Select a driver'),
-                  //   items:
-                  //       ['Johnathan Miller', 'Sarah Thompson', 'Michael Chen']
-                  //           .map(
-                  //             (e) => DropdownMenuItem(value: e, child: Text(e)),
-                  //           )
-                  //           .toList(),
-                  //   onChanged: (v) {},
-                  // ),
-                  // const SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'This vehicle will be added to the fleet immediately.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  AppButton(
-                    label: 'Add Vehicle',
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                     onPressed: () => Navigator.pop(context),
-                    icon: Icons.app_registration_outlined,
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
+                  const Expanded(
+                    child: Text(
+                      'Add Vehicle',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
-          ),
-        ],
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppTextField(
+                      label: 'Vehicle Number',
+                      hint: 'e.g. ABC-1234',
+                      prefixIcon: Icons.numbers_outlined,
+                    ),
+                    const SizedBox(height: 20),
+                    AppTextField(
+                      label: 'Model',
+                      hint: 'e.g. Toyota Camry',
+                      prefixIcon: Icons.directions_car_outlined,
+                    ),
+                    const SizedBox(height: 20),
+                    AppTextField(
+                      label: 'Capacity (Tons)',
+                      hint: 'e.g. 10.5',
+                      prefixIcon: Icons.monitor_weight_outlined,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Fuel Type',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _buildFuelOption('Diesel', Icons.gas_meter_outlined),
+                        const SizedBox(width: 12),
+                        _buildFuelOption(
+                          'Petrol',
+                          Icons.local_gas_station_outlined,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildFuelOption('Electric', Icons.bolt_outlined),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'This vehicle will be added to the fleet immediately.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    AppButton(
+                      label: 'Add Vehicle',
+                      onPressed: _handleAddVehicle,
+                      icon: Icons.app_registration_outlined,
+                      isLoading: _isLoading,
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sivani_transport/core/app_theme.dart';
 import 'package:sivani_transport/pages/login_page.dart';
 import 'package:sivani_transport/pages/main_page.dart';
@@ -9,7 +10,7 @@ import 'package:sivani_transport/pages/trips_page.dart';
 import 'package:sivani_transport/pages/profile_page.dart';
 
 void main() {
-  runApp(const SivaniTransportApp());
+  runApp(const ProviderScope(child: SivaniTransportApp()));
 }
 
 class SivaniTransportApp extends StatelessWidget {

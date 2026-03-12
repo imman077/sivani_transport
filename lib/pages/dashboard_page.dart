@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/widgets/stat_card.dart';
+import 'package:sivani_transport/widgets/app_components.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -20,98 +21,7 @@ class DashboardPage extends StatelessWidget {
         child: Column(
           children: [
             // Fixed Top Area (Branded Header)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: const BoxDecoration(color: Colors.transparent),
-              child: Row(
-                children: [
-                  // Brand Icon
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary,
-                          AppColors.primary.withValues(alpha: 0.8),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.local_shipping_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Text(
-                    'Sivani Transport',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Notification Hub
-                  Stack(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(
-                          Icons.notifications_none_rounded,
-                          color: Colors.grey.shade700,
-                          size: 24,
-                        ),
-                      ),
-                      Positioned(
-                        right: 10,
-                        top: 10,
-                        child: Container(
-                          height: 8,
-                          width: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  // Log Out
-                  InkWell(
-                    onTap: () => Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/',
-                      (route) => false,
-                    ),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.logout_rounded,
-                        color: Colors.redAccent,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const BrandedHeader(),
             const SizedBox(height: 8),
 
             // Scrollable Content
@@ -212,14 +122,8 @@ class DashboardPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
 
-                          // Stats Grid
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 2.2,
+                          // Premium Stats List
+                          Column(
                             children: const [
                               StatCard(
                                 title: 'Drivers',
@@ -227,27 +131,38 @@ class DashboardPage extends StatelessWidget {
                                 icon: Icons.person_pin_rounded,
                                 iconBg: Color(0xFFE3F2FD),
                                 iconColor: Color(0xFF1976D2),
+                                trend: '+12%',
+                                isPositive: true,
                               ),
+                              SizedBox(height: 16),
                               StatCard(
                                 title: 'Vehicles',
                                 value: '86',
                                 icon: Icons.local_shipping_rounded,
                                 iconBg: Color(0xFFFFF3E0),
                                 iconColor: Color(0xFFF57C00),
+                                trend: '+4%',
+                                isPositive: true,
                               ),
+                              SizedBox(height: 16),
                               StatCard(
                                 title: 'Trips',
                                 value: '24',
                                 icon: Icons.auto_graph_rounded,
                                 iconBg: Color(0xFFE8F5E9),
                                 iconColor: Color(0xFF388E3C),
+                                trend: '-2%',
+                                isPositive: false,
                               ),
+                              SizedBox(height: 16),
                               StatCard(
                                 title: 'Revenue',
-                                value: '\$1,240',
+                                value: r'$1,240',
                                 icon: Icons.payments_rounded,
                                 iconBg: Color(0xFFF3E5F5),
                                 iconColor: Color(0xFF7B1FA2),
+                                trend: '+8%',
+                                isPositive: true,
                               ),
                             ],
                           ),

@@ -168,9 +168,6 @@ class _AppDatePickerState extends State<AppDatePicker> {
     final firstDate = widget.firstDate ?? DateTime(2000);
     final lastDate = widget.lastDate ?? DateTime(2100);
 
-    // Clamp initialDate so it is always within [firstDate, lastDate].
-    // If initialDate < firstDate (e.g. 'today' < selected start date),
-    // the picker would show all dates as disabled — so we pin it to firstDate.
     DateTime initialDate = widget.initialDate ?? now;
     if (initialDate.isBefore(firstDate)) initialDate = firstDate;
     if (initialDate.isAfter(lastDate)) initialDate = lastDate;
@@ -235,6 +232,8 @@ class AppButton extends StatelessWidget {
   final Color? backgroundColor;
   final Color? foregroundColor;
   final double? height;
+  final bool isLoading;
+  final bool fullWidth;
 
   const AppButton({
     super.key,
@@ -244,6 +243,8 @@ class AppButton extends StatelessWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.height,
+    this.isLoading = false,
+    this.fullWidth = true,
   });
 
   @override
@@ -251,22 +252,108 @@ class AppButton extends StatelessWidget {
     final style = ElevatedButton.styleFrom(
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
-      minimumSize: Size(double.infinity, height ?? 56),
+      minimumSize: Size(0, height ?? 56),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
     );
 
-    if (icon != null) {
-      return ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 20),
-        label: Text(label),
-        style: style,
-      );
-    }
+    final content = isLoading
+        ? SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: foregroundColor ?? Colors.white,
+            ),
+          )
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          );
 
-    return ElevatedButton(
-      onPressed: onPressed,
+    final button = ElevatedButton(
+      onPressed: isLoading ? null : onPressed,
       style: style,
-      child: Text(label),
+      child: content,
+    );
+
+    return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
+class BrandedHeader extends StatelessWidget {
+  const BrandedHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.local_shipping_rounded,
+                color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'Sivani Transport',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_none_rounded,
+                  color: AppColors.textPrimary),
+              onPressed: () {},
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              onPressed: () {
+                Navigator.pushReplacementNamed(context, '/');
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
