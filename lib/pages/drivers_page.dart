@@ -6,6 +6,7 @@ import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/models/driver.dart';
 import 'package:sivani_transport/providers/driver_provider.dart';
 import 'package:sivani_transport/providers/driver_form_provider.dart';
+import 'package:sivani_transport/providers/search_provider.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
 
 class DriversPage extends ConsumerStatefulWidget {
@@ -16,25 +17,17 @@ class DriversPage extends ConsumerStatefulWidget {
 }
 
 class _DriversPageState extends ConsumerState<DriversPage> {
-  String _selectedFilter = 'All';
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
+  // No local state needed, using providers instead
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<Driver> _getFilteredDrivers(List<Driver> drivers) {
+  List<Driver> _getFilteredDrivers(List<Driver> drivers, String searchQuery, String selectedFilter) {
     return drivers.where((d) {
       final nameMatch = d.name.toLowerCase().contains(
-            _searchQuery.toLowerCase(),
+            searchQuery.toLowerCase(),
           );
 
-      final statusMatch = _selectedFilter == 'All' ||
-          (_selectedFilter == 'Available' && d.isAvailable) ||
-          (_selectedFilter == 'Busy' && !d.isAvailable);
+      final statusMatch = selectedFilter == 'All' ||
+          (selectedFilter == 'Available' && d.isAvailable) ||
+          (selectedFilter == 'Busy' && !d.isAvailable);
 
       return nameMatch && statusMatch;
     }).toList();
@@ -54,7 +47,9 @@ class _DriversPageState extends ConsumerState<DriversPage> {
   @override
   Widget build(BuildContext context) {
     final drivers = ref.watch(driverProvider);
-    final filteredDrivers = _getFilteredDrivers(drivers);
+    final searchQuery = ref.watch(driverSearchProvider);
+    final selectedFilter = ref.watch(driverFilterProvider);
+    final filteredDrivers = _getFilteredDrivers(drivers, searchQuery, selectedFilter);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -73,7 +68,12 @@ class _DriversPageState extends ConsumerState<DriversPage> {
       ),
       body: Column(
         children: [
-          _buildSearchAndFilter(filteredDrivers.length),
+          // Sticky Header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildSearchAndFilter(filteredDrivers.length, drivers),
+          ),
           Expanded(
             child: filteredDrivers.isEmpty
                 ? _buildEmptyState()
@@ -86,15 +86,10 @@ class _DriversPageState extends ConsumerState<DriversPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddDriverForm(),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
     );
   }
 
-  Widget _buildSearchAndFilter(int driverCount) {
+  Widget _buildSearchAndFilter(int driverCount, List<Driver> drivers) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -102,23 +97,27 @@ class _DriversPageState extends ConsumerState<DriversPage> {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F6F9),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.blueGrey.withValues(alpha: 0.1),
+                width: 1,
+              ),
             ),
+            height: 46,
+            alignment: Alignment.center,
             child: TextField(
-              controller: _searchController,
-              onChanged: (val) => setState(() => _searchQuery = val),
+              onChanged: (val) => ref.read(driverSearchProvider.notifier).state = val,
               decoration: const InputDecoration(
                 hintText: 'Search drivers by name',
+                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                 prefixIcon: Icon(
                   Icons.search,
                   color: Colors.grey,
                   size: 20,
                 ),
                 border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
               ),
             ),
           ),
@@ -127,80 +126,85 @@ class _DriversPageState extends ConsumerState<DriversPage> {
             label: 'Add New Driver',
             onPressed: _showAddDriverForm,
             icon: Icons.add,
-            height: 48,
+            height: 46,
           ),
           const SizedBox(height: 20),
           Container(
-            height: 52,
-            padding: const EdgeInsets.all(6),
+            height: 44,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Colors.blueGrey.withValues(alpha: 0.08),
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _buildFilterTab('All')),
-                Expanded(child: _buildFilterTab('Available')),
-                Expanded(child: _buildFilterTab('Busy')),
+                Expanded(child: _buildFilterTab('All', drivers.length, Icons.group_rounded)),
+                Expanded(child: _buildFilterTab('Available', drivers.where((d) => d.isAvailable).length, Icons.check_circle_rounded)),
+                Expanded(child: _buildFilterTab('Busy', drivers.where((d) => !d.isAvailable).length, Icons.timer_rounded)),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Active Drivers ($driverCount)',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
 
-  Widget _buildFilterTab(String label) {
-    final String actualValue = label == 'Busy' ? 'On Assignment' : label;
-    final bool isSelected = _selectedFilter == actualValue;
+  Widget _buildFilterTab(String label, int count, IconData icon) {
+    final selectedFilter = ref.watch(driverFilterProvider);
+    final bool isSelected = selectedFilter == label;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _selectedFilter = actualValue),
+      onTap: () => ref.read(driverFilterProvider.notifier).state = label,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutQuart,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        height: double.infinity,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-              fontSize: 13,
-              letterSpacing: -0.2,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : Colors.blueGrey.shade400,
             ),
-          ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.blueGrey.shade700,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected 
+                    ? Colors.white.withValues(alpha: 0.15) 
+                    : Colors.blueGrey.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                count.toString(),
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.blueGrey.shade700,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -245,19 +249,36 @@ class _DriversPageState extends ConsumerState<DriversPage> {
   }
 
   Widget _buildStatusBadge(bool isAvailable) {
+    final baseColor = isAvailable ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: (isAvailable ? Colors.green : Colors.orange).withValues(alpha: 0.1),
+        color: baseColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: baseColor.withValues(alpha: 0.2), width: 1),
       ),
-      child: Text(
-        isAvailable ? 'Available' : 'Busy',
-        style: TextStyle(
-          color: isAvailable ? Colors.green : Colors.orange,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: baseColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            isAvailable ? 'Available' : 'Busy',
+            style: TextStyle(
+              color: baseColor,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -265,106 +286,114 @@ class _DriversPageState extends ConsumerState<DriversPage> {
   Widget _buildDriverCard(Driver driver) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 65,
-            height: 65,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: driver.pickedImage != null
-                  ? Image.file(
-                      File(driver.pickedImage!.path),
-                      fit: BoxFit.cover,
-                    )
-                  : (driver.image != null
-                      ? Image.network(
-                          driver.image!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => _defaultAvatar(),
-                        )
-                      : _defaultAvatar()),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  driver.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+                      // Avatar Section
+                      Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: driver.pickedImage != null
+                              ? Image.file(
+                                  File(driver.pickedImage!.path),
+                                  fit: BoxFit.cover,
+                                )
+                              : (driver.image != null
+                                  ? Image.network(
+                                      driver.image!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => _defaultAvatar(),
+                                    )
+                                  : _defaultAvatar()),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Info Section
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              driver.name,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.phone_rounded,
+                                    size: 13, color: Colors.blueGrey.shade300),
+                                const SizedBox(width: 6),
+                                Text(
+                                  driver.phone,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.blueGrey.shade400,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _buildStatusBadge(driver.isAvailable),
+                          ],
+                        ),
+                      ),
+                      // Action Section
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildActionButton(
+                            Icons.edit_rounded,
+                            const Color(0xFFEFF6FF),
+                            const Color(0xFF2563EB),
+                            () => _showAddDriverForm(driver: driver),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildActionButton(
+                            Icons.delete_outline_rounded,
+                            const Color(0xFFFFF1F2),
+                            const Color(0xFFE11D48),
+                            () => _showDeleteConfirmation(driver),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.phone_outlined,
-                        size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      driver.phone,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                _buildStatusBadge(driver.isAvailable),
-              ],
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildActionButton(
-                Icons.edit_rounded,
-                AppColors.primary.withValues(alpha: 0.08),
-                AppColors.primary,
-                () => _showAddDriverForm(driver: driver),
               ),
-              const SizedBox(height: 10),
-              _buildActionButton(
-                Icons.delete_outline_rounded,
-                Colors.red.withValues(alpha: 0.08),
-                Colors.redAccent,
-                () => _showDeleteConfirmation(driver),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+            );
   }
 
   Widget _defaultAvatar() {

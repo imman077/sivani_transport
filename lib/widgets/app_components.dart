@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 
 class AppTextField extends StatefulWidget {
@@ -115,6 +116,7 @@ class AppDatePicker extends StatefulWidget {
   final DateTime? initialDate;
   final DateTime? firstDate;
   final DateTime? lastDate;
+  final bool enabled;
 
   const AppDatePicker({
     super.key,
@@ -124,6 +126,7 @@ class AppDatePicker extends StatefulWidget {
     this.initialDate,
     this.firstDate,
     this.lastDate,
+    this.enabled = true,
   });
 
   @override
@@ -164,6 +167,8 @@ class _AppDatePickerState extends State<AppDatePicker> {
   }
 
   Future<void> _pickDate() async {
+    if (!widget.enabled) return;
+
     final now = DateTime.now();
     final firstDate = widget.firstDate ?? DateTime(2000);
     final lastDate = widget.lastDate ?? DateTime(2100);
@@ -207,18 +212,21 @@ class _AppDatePickerState extends State<AppDatePicker> {
 
   @override
   Widget build(BuildContext context) {
-    return AppTextField(
-      label: widget.label,
-      hint: widget.hint,
-      controller: _controller,
-      readOnly: true,
-      onTap: _pickDate,
-      suffixIcon: GestureDetector(
-        onTap: _pickDate,
-        child: const Icon(
-          Icons.calendar_today_outlined,
-          size: 18,
-          color: AppColors.textSecondary,
+    return Opacity(
+      opacity: widget.enabled ? 1.0 : 0.5,
+      child: AppTextField(
+        label: widget.label,
+        hint: widget.hint,
+        controller: _controller,
+        readOnly: true,
+        onTap: widget.enabled ? _pickDate : null,
+        suffixIcon: GestureDetector(
+          onTap: widget.enabled ? _pickDate : null,
+          child: const Icon(
+            Icons.calendar_today_outlined,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
         ),
       ),
     );
@@ -254,7 +262,7 @@ class AppButton extends StatelessWidget {
       foregroundColor: foregroundColor,
       minimumSize: Size(0, height ?? 56),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 0,
     );
 
@@ -348,7 +356,7 @@ class BrandedHeader extends StatelessWidget {
             child: IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               onPressed: () {
-                Navigator.pushReplacementNamed(context, '/');
+                context.go('/');
               },
             ),
           ),

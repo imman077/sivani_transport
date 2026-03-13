@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -112,7 +113,7 @@ class ProfilePage extends StatelessWidget {
                 width: double.infinity,
                 child: TextButton.icon(
                   onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/');
+                    context.go('/');
                   },
                   icon: const Icon(Icons.logout, color: Colors.red),
                   label: const Text(

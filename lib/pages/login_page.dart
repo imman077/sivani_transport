@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
 import 'package:sivani_transport/widgets/role_button.dart';
@@ -166,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
 
               AppButton(
                 label: 'Sign In',
-                onPressed: () => Navigator.pushReplacementNamed(context, '/main'),
+                onPressed: () => context.go('/dashboard'),
                 icon: Icons.arrow_forward,
               ),
               const SizedBox(height: 32),

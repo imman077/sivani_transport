@@ -1,39 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
-import 'package:sivani_transport/pages/dashboard_page.dart';
-import 'package:sivani_transport/pages/drivers_page.dart';
-import 'package:sivani_transport/pages/vehicles_page.dart';
-import 'package:sivani_transport/pages/trips_page.dart';
-import 'package:sivani_transport/pages/profile_page.dart';
 
-class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+class MainPage extends StatelessWidget {
+  final StatefulNavigationShell navigationShell;
 
-  @override
-  State<MainPage> createState() => _MainPageState();
-}
-
-class _MainPageState extends State<MainPage> {
-  int _selectedIndex = 0;
+  const MainPage({
+    super.key,
+    required this.navigationShell,
+  });
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = [
-      const DashboardPage(),
-      const DriversPage(),
-      const VehiclesPage(),
-      const TripsPage(),
-      const ProfilePage(),
-    ];
-
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: navigationShell,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -65,7 +52,7 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildNavItem(int index, IconData icon, String label) {
-    final bool isSelected = _selectedIndex == index;
+    final bool isSelected = navigationShell.currentIndex == index;
     return GestureDetector(
       onTap: () => _onItemTapped(index),
       behavior: HitTestBehavior.opaque,
