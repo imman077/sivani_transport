@@ -102,8 +102,8 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      isDismissible: !isReadOnly,
-      enableDrag: !isReadOnly,
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (context) =>
           TripWizardSheet(key: ValueKey(trip?.id ?? 'new_trip'), isEditing: isEditing, trip: trip, isReadOnly: isReadOnly),

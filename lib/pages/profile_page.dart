@@ -63,8 +63,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
-    if (user == null) return const Scaffold(body: Center(child: Text('No user logged in')));
-    
+    if (user == null)
+      return const Scaffold(body: Center(child: Text('No user logged in')));
+
     final isAdmin = user.role == 'Admin';
 
     return Scaffold(
@@ -80,19 +81,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          if (isAdmin)
-            if (!_isEditing)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
-                onPressed: () => setState(() => _isEditing = true),
-              )
-            else
-              TextButton(
-                onPressed: _saveProfile,
-                child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-        ],
+        // actions: [
+        //   if (isAdmin)
+        //     if (!_isEditing)
+        //       IconButton(
+        //         icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
+        //         onPressed: () => setState(() => _isEditing = true),
+        //       )
+        //     else
+        //       TextButton(
+        //         onPressed: _saveProfile,
+        //         child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
+        //       ),
+        // ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -119,15 +120,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: _buildProfileImage(user.image),
-                        ),
+                        child: ClipOval(child: _buildProfileImage(user.image)),
                       ),
                       if (_isEditing)
                         CircleAvatar(
                           radius: 16,
                           backgroundColor: Colors.white,
-                          child: Icon(Icons.camera_alt_outlined, size: 16, color: AppColors.primary),
+                          child: Icon(
+                            Icons.camera_alt_outlined,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
                         ),
                     ],
                   ),
@@ -135,11 +138,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   if (!_isEditing) ...[
                     Text(
                       user.name,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       '${user.role} • Sivani Transport',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ],
@@ -178,7 +187,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 onPressed: () => setState(() => _isEditing = false),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: const Text('Cancel'),
               ),
@@ -186,10 +197,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               _buildInfoTile(Icons.email_outlined, 'Email Address', user.email),
               _buildInfoTile(Icons.phone_outlined, 'Phone Number', user.phone),
               if (!isAdmin && user.license.isNotEmpty)
-                _buildInfoTile(Icons.description_outlined, 'License ID', user.license),
+                _buildInfoTile(
+                  Icons.description_outlined,
+                  'License ID',
+                  user.license,
+                ),
               _buildInfoTile(
-                Icons.badge_outlined, 
-                isAdmin ? 'Admin ID' : 'Driver ID', 
+                Icons.badge_outlined,
+                isAdmin ? 'Admin ID' : 'Driver ID',
                 user.id,
               ),
               const SizedBox(height: 32),
@@ -201,7 +216,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     context.go('/');
                   },
                   icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('Log Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.red.withValues(alpha: 0.05),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -237,8 +258,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
         ],
@@ -250,20 +283,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (source == null || source.isEmpty) {
       return const Icon(Icons.person, size: 60, color: Colors.white);
     }
-    
+
     if (source.startsWith('http')) {
       return Image.network(
         source,
         fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => const Icon(Icons.person, size: 60, color: Colors.white),
+        errorBuilder: (c, e, s) =>
+            const Icon(Icons.person, size: 60, color: Colors.white),
       );
     }
-    
+
     try {
       return Image.memory(
         base64Decode(source),
         fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => const Icon(Icons.person, size: 60, color: Colors.white),
+        errorBuilder: (c, e, s) =>
+            const Icon(Icons.person, size: 60, color: Colors.white),
       );
     } catch (e) {
       return const Icon(Icons.person, size: 60, color: Colors.white);

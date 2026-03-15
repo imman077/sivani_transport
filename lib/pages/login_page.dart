@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
-import 'package:sivani_transport/widgets/role_button.dart';
 import 'package:sivani_transport/services/firebase_service.dart';
 import 'package:sivani_transport/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,27 +35,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _loadSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+    final String prefix = isAdministrator ? 'admin_' : 'driver_';
+
     if (mounted) {
       setState(() {
         _rememberMe = prefs.getBool(_keyRememberMe) ?? true;
         if (_rememberMe) {
-          _emailController.text = prefs.getString(_keyEmail) ?? '';
-          _passwordController.text = prefs.getString(_keyPassword) ?? '';
+          _emailController.text = prefs.getString('${prefix}${_keyEmail}') ?? '';
+          _passwordController.text =
+              prefs.getString('${prefix}${_keyPassword}') ?? '';
         }
-        isAdministrator = prefs.getBool(_keyIsAdmin) ?? true;
       });
     }
   }
 
+  void _switchRole(bool toAdmin) {
+    if (isAdministrator == toAdmin) return;
+    setState(() {
+      isAdministrator = toAdmin;
+      _emailController.clear();
+      _passwordController.clear();
+    });
+  }
+
   void _saveCredentials() async {
     final prefs = await SharedPreferences.getInstance();
+    final String prefix = isAdministrator ? 'admin_' : 'driver_';
+    
     await prefs.setBool(_keyRememberMe, _rememberMe);
     if (_rememberMe) {
-      await prefs.setString(_keyEmail, _emailController.text);
-      await prefs.setString(_keyPassword, _passwordController.text);
+      await prefs.setString('${prefix}${_keyEmail}', _emailController.text);
+      await prefs.setString('${prefix}${_keyPassword}', _passwordController.text);
     } else {
-      await prefs.remove(_keyEmail);
-      await prefs.remove(_keyPassword);
+      await prefs.remove('${prefix}${_keyEmail}');
+      await prefs.remove('${prefix}${_keyPassword}');
     }
     await prefs.setBool(_keyIsAdmin, isAdministrator);
   }
@@ -75,7 +87,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     setState(() => _isLoading = true);
-    _saveCredentials();
 
     try {
       final user = await FirebaseService().login(
@@ -85,6 +96,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       if (user != null) {
         if (mounted) {
+          // Validate role
+          final selectedRole = isAdministrator ? 'Admin' : 'Driver';
+          if (user.role != selectedRole) {
+            AppToast.show(
+              context,
+              'Invalid credentials for ${isAdministrator ? "Administrator" : "Driver"} role.',
+              isError: true,
+            );
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          _saveCredentials();
           TextInput.finishAutofillContext();
           ref.read(authProvider.notifier).login(user);
           AppToast.show(context, 'Welcome back, ${user.name}!');
@@ -192,40 +216,78 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               const SizedBox(height: 40),
 
-              // Role Selection
+              // Sleek Modern Role Tabs
               const Text(
                 'Select Role',
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: Color(0xFF475569),
+                  letterSpacing: 0.8,
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: RoleButton(
-                      label: 'Administrator',
-                      icon: isAdministrator
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      isSelected: isAdministrator,
-                      onTap: () => setState(() => isAdministrator = true),
+              const SizedBox(height: 14),
+              Container(
+                height: 48,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9), // Slate 100
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Stack(
+                  children: [
+                    // Precision Background Slider
+                    AnimatedAlign(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOutBack,
+                      alignment: isAdministrator ? Alignment.centerLeft : Alignment.centerRight,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.5,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: RoleButton(
-                      label: 'Driver',
-                      icon: !isAdministrator
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      isSelected: !isAdministrator,
-                      onTap: () => setState(() => isAdministrator = false),
+                    // Tab Content (Wrapped in Positioned.fill to ensure full width integration)
+                    Positioned.fill(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildRoleTab(
+                              'Administrator',
+                              Icons.shield_rounded,
+                              isAdministrator,
+                              () => _switchRole(true),
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildRoleTab(
+                              'Driver',
+                              Icons.local_shipping_rounded,
+                              !isAdministrator,
+                              () => _switchRole(false),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 32),
 
@@ -310,6 +372,43 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
               ),
               const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleTab(
+    String label,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 200),
+          style: TextStyle(
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            fontSize: 13,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 8),
+              Text(label),
             ],
           ),
         ),
