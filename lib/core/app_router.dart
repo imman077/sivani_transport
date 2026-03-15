@@ -18,6 +18,10 @@ final goRouter = GoRouter(
       path: '/',
       builder: (context, state) => const LoginPage(),
     ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfilePage(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainPage(navigationShell: navigationShell);
@@ -52,14 +56,6 @@ final goRouter = GoRouter(
             GoRoute(
               path: '/trips',
               builder: (context, state) => const TripsPage(key: ValueKey('trips_v1')),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/profile',
-              builder: (context, state) => const ProfilePage(),
             ),
           ],
         ),

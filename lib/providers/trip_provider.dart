@@ -1,50 +1,30 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sivani_transport/models/trip.dart';
+import 'package:sivani_transport/services/firebase_service.dart';
 
 class TripNotifier extends StateNotifier<List<Trip>> {
-  TripNotifier() : super([
-    Trip(
-      id: 'TRIP-4451',
-      from: 'Chicago',
-      to: 'Detroit',
-      vehicle: 'Mercedes Sprinter',
-      plate: 'ABC-1234',
-      status: 'Completed',
-      statusColor: Colors.green,
-      driver: 'Johnathan Miller',
-      initialCash: 1000,
-      startDate: DateTime(2023, 10, 24),
-      endDate: DateTime(2023, 10, 25),
-    ),
-    Trip(
-      id: 'TRIP-4452',
-      from: 'New York',
-      to: 'Boston',
-      vehicle: 'Volvo FH16',
-      plate: 'XYZ-5678',
-      driver: 'Sarah Thompson',
-      status: 'Ongoing',
-      statusColor: Colors.blue,
-      initialCash: 1000,
-      startDate: DateTime(2023, 10, 25),
-      endDate: DateTime(2023, 10, 26),
-    ),
-  ]);
+  final FirebaseService _firebaseService = FirebaseService();
 
-  void addTrip(Trip trip) {
-    state = [trip, ...state];
+  TripNotifier() : super([]) {
+    _listenToTrips();
   }
 
-  void updateTrip(Trip trip) {
-    state = [
-      for (final t in state)
-        if (t.id == trip.id) trip else t
-    ];
+  void _listenToTrips() {
+    _firebaseService.getTrips().listen((trips) {
+      state = trips;
+    });
   }
 
-  void deleteTrip(String id) {
-    state = state.where((trip) => trip.id != id).toList();
+  Future<void> addTrip(Trip trip) async {
+    await _firebaseService.saveTrip(trip);
+  }
+
+  Future<void> updateTrip(Trip trip) async {
+    await _firebaseService.saveTrip(trip);
+  }
+
+  Future<void> deleteTrip(String id) async {
+    await _firebaseService.deleteTrip(id);
   }
 }
 

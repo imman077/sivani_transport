@@ -1,19 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
 import 'package:sivani_transport/widgets/role_button.dart';
+import 'package:sivani_transport/services/firebase_service.dart';
+import 'package:sivani_transport/providers/auth_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   bool isAdministrator = true;
-  bool obscurePassword = true;
+  bool _isLoading = false;
+  bool _rememberMe = true;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  static const String _keyEmail = 'saved_email';
+  static const String _keyPassword = 'saved_password';
+  static const String _keyIsAdmin = 'saved_is_admin';
+  static const String _keyRememberMe = 'saved_remember_me';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  void _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _rememberMe = prefs.getBool(_keyRememberMe) ?? true;
+        if (_rememberMe) {
+          _emailController.text = prefs.getString(_keyEmail) ?? '';
+          _passwordController.text = prefs.getString(_keyPassword) ?? '';
+        }
+        isAdministrator = prefs.getBool(_keyIsAdmin) ?? true;
+      });
+    }
+  }
+
+  void _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyRememberMe, _rememberMe);
+    if (_rememberMe) {
+      await prefs.setString(_keyEmail, _emailController.text);
+      await prefs.setString(_keyPassword, _passwordController.text);
+    } else {
+      await prefs.remove(_keyEmail);
+      await prefs.remove(_keyPassword);
+    }
+    await prefs.setBool(_keyIsAdmin, isAdministrator);
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      AppToast.show(context, 'Please enter email and password', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    _saveCredentials();
+
+    try {
+      final user = await FirebaseService().login(
+        _emailController.text,
+        _passwordController.text,
+      );
+
+      if (user != null) {
+        if (mounted) {
+          TextInput.finishAutofillContext();
+          ref.read(authProvider.notifier).login(user);
+          AppToast.show(context, 'Welcome back, ${user.name}!');
+          context.go('/dashboard');
+        }
+      } else {
+        if (mounted) {
+          AppToast.show(context, 'Invalid email or password', isError: true);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, 'Login Error: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,34 +229,60 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 32),
 
-              AppTextField(
-                label: 'Email Address',
-                hint: 'name@company.com',
-                prefixIcon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 24),
-
-              AppTextField(
-                label: 'Password',
-                hint: '••••••••',
-                prefixIcon: Icons.lock_outline,
-                obscureText: obscurePassword,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                  ),
-                  onPressed: () =>
-                      setState(() => obscurePassword = !obscurePassword),
+              AutofillGroup(
+                child: Column(
+                  children: [
+                    AppTextField(
+                      controller: _emailController,
+                      label: 'Email Address',
+                      hint: 'name@company.com',
+                      prefixIcon: Icons.email_outlined,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                    ),
+                    const SizedBox(height: 24),
+                    AppTextField(
+                      controller: _passwordController,
+                      label: 'Password',
+                      hint: '••••••••',
+                      prefixIcon: Icons.lock_outline,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.password],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: Checkbox(
+                      value: _rememberMe,
+                      activeColor: AppColors.primary,
+                      onChanged: (value) =>
+                          setState(() => _rememberMe = value ?? false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Remember Me',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
 
               AppButton(
                 label: 'Sign In',
-                onPressed: () => context.go('/dashboard'),
+                isLoading: _isLoading,
+                onPressed: _handleLogin,
                 icon: Icons.arrow_forward,
               ),
               const SizedBox(height: 32),

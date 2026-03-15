@@ -1,52 +1,47 @@
-import 'package:image_picker/image_picker.dart';
 
-class Driver {
+class AppUser {
   final String id;
   final String name;
   final String phone;
   final String email;
   final String password;
+  final String role; // Admin, Driver, etc.
   final String license;
-  final bool isAvailable;
-  final String? image; // URL or File path
-  final XFile? pickedImage;
+  final String? image;
   final DateTime registrationDate;
 
-  Driver({
+  AppUser({
     required this.id,
     required this.name,
     required this.phone,
-    this.email = '',
-    this.password = '',
-    required this.license,
-    this.isAvailable = true,
+    required this.email,
+    required this.password,
+    required this.role,
+    this.license = '',
     this.image,
-    this.pickedImage,
-    DateTime? registrationDate,
-  }) : registrationDate = registrationDate ?? DateTime.now();
+    required this.registrationDate,
+  });
 
-  Driver copyWith({
+  AppUser copyWith({
     String? id,
     String? name,
     String? phone,
     String? email,
     String? password,
+    String? role,
     String? license,
-    bool? isAvailable,
     String? image,
-    XFile? pickedImage,
     DateTime? registrationDate,
   }) {
-    return Driver(
+    return AppUser(
       id: id ?? this.id,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       password: password ?? this.password,
+      role: role ?? this.role,
       license: license ?? this.license,
-      isAvailable: isAvailable ?? this.isAvailable,
       image: image ?? this.image,
-      pickedImage: pickedImage ?? this.pickedImage,
       registrationDate: registrationDate ?? this.registrationDate,
     );
   }
@@ -58,23 +53,22 @@ class Driver {
       'phone': phone,
       'email': email,
       'password': password,
+      'role': role,
       'license': license,
-      'isAvailable': isAvailable,
       'image': image,
-      'role': 'Driver',
       'registrationDate': registrationDate.toIso8601String(),
     };
   }
 
-  factory Driver.fromMap(Map<String, dynamic> map) {
-    return Driver(
+  factory AppUser.fromMap(Map<String, dynamic> map) {
+    return AppUser(
       id: map['id'] ?? '',
       name: map['name'] ?? '',
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
       password: map['password'] ?? '',
+      role: map['role'] ?? 'Driver',
       license: map['license'] ?? '',
-      isAvailable: map['isAvailable'] ?? true,
       image: map['image'],
       registrationDate: map['registrationDate'] != null 
           ? DateTime.parse(map['registrationDate']) 

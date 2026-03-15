@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "555619822264",
+    "project_id": "sivanitransport-89f41",
+    "storage_bucket": "sivanitransport-89f41.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:555619822264:android:b4e933d5a80f5228ba624d",
+        "android_client_info": {
+          "package_name": "com.example.sivani_transport"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLGz_Q9PRa9RsUximbevGF0J_ARXEitiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

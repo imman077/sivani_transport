@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
+import 'package:sivani_transport/providers/auth_provider.dart';
 
-class MainPage extends StatelessWidget {
+class MainPage extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainPage({
@@ -18,7 +20,10 @@ class MainPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider);
+    final isAdmin = user?.role == 'Admin';
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Container(
@@ -39,10 +44,11 @@ class MainPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(0, Icons.grid_view_rounded, 'DASHBOARD'),
-                _buildNavItem(1, Icons.badge_outlined, 'DRIVERS'),
-                _buildNavItem(2, Icons.local_shipping_outlined, 'VEHICLES'),
+                if (isAdmin) ...[
+                  _buildNavItem(1, Icons.badge_outlined, 'DRIVERS'),
+                  _buildNavItem(2, Icons.local_shipping_outlined, 'VEHICLES'),
+                ],
                 _buildNavItem(3, Icons.map_outlined, 'TRIPS'),
-                _buildNavItem(4, Icons.person_outline, 'PROFILE'),
               ],
             ),
           ),

@@ -7,6 +7,7 @@ class Trip {
   final String vehicle;
   final String plate;
   final String driver;
+  final String? driverId;
   final DateTime? startDate;
   final DateTime? endDate;
   final double startKm;
@@ -25,6 +26,7 @@ class Trip {
     required this.vehicle,
     required this.plate,
     required this.driver,
+    this.driverId,
     this.startDate,
     this.endDate,
     this.startKm = 0,
@@ -66,6 +68,7 @@ class Trip {
     String? vehicle,
     String? plate,
     String? driver,
+    String? driverId,
     DateTime? startDate,
     DateTime? endDate,
     double? startKm,
@@ -84,6 +87,7 @@ class Trip {
       vehicle: vehicle ?? this.vehicle,
       plate: plate ?? this.plate,
       driver: driver ?? this.driver,
+      driverId: driverId ?? this.driverId,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       startKm: startKm ?? this.startKm,
@@ -94,6 +98,54 @@ class Trip {
       initialCash: initialCash ?? this.initialCash,
       status: status ?? this.status,
       statusColor: statusColor ?? this.statusColor,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'from': from,
+      'to': to,
+      'vehicle': vehicle,
+      'plate': plate,
+      'driver': driver,
+      'driverId': driverId,
+      'startDate': startDate?.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+      'startKm': startKm,
+      'endKm': endKm,
+      'diesel': diesel,
+      'expenseList': expenseList,
+      'paymentList': paymentList,
+      'initialCash': initialCash,
+      'status': status,
+      'statusColor': statusColor.toARGB32(),
+    };
+  }
+
+  factory Trip.fromMap(Map<String, dynamic> map) {
+    return Trip(
+      id: map['id'] ?? '',
+      from: map['from'] ?? '',
+      to: map['to'] ?? '',
+      vehicle: map['vehicle'] ?? '',
+      plate: map['plate'] ?? '',
+      driver: map['driver'] ?? '',
+      driverId: map['driverId'],
+      startDate: map['startDate'] != null ? DateTime.parse(map['startDate']) : null,
+      endDate: map['endDate'] != null ? DateTime.parse(map['endDate']) : null,
+      startKm: (map['startKm'] ?? 0.0).toDouble(),
+      endKm: (map['endKm'] ?? 0.0).toDouble(),
+      diesel: (map['diesel'] ?? 0.0).toDouble(),
+      expenseList: List<Map<String, dynamic>>.from(map['expenseList'] ?? [])
+          .map((e) => Map<String, String>.from(e))
+          .toList(),
+      paymentList: List<Map<String, dynamic>>.from(map['paymentList'] ?? [])
+          .map((p) => Map<String, String>.from(p))
+          .toList(),
+      initialCash: (map['initialCash'] ?? 0.0).toDouble(),
+      status: map['status'] ?? 'Ongoing',
+      statusColor: Color(map['statusColor'] ?? Colors.blue.toARGB32()),
     );
   }
 }

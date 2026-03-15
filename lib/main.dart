@@ -4,8 +4,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sivani_transport/core/app_theme.dart';
 import 'package:sivani_transport/core/app_router.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
+  
+  try {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyDLGz_Q9PRa9RsUximbevGF0J_ARXEitiQ",
+        appId: "1:555619822264:web:b4e933d5a80f5228ba624d", // Manual fallback for web
+        messagingSenderId: "555619822264",
+        projectId: "sivanitransport-89f41",
+        storageBucket: "sivanitransport-89f41.firebasestorage.app",
+      ),
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
+
   runApp(const ProviderScope(child: SivaniTransportApp()));
 }
 

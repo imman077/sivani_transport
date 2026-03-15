@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/models/driver.dart';
 import 'package:sivani_transport/providers/driver_provider.dart';
@@ -17,13 +18,26 @@ class DriversPage extends ConsumerStatefulWidget {
 }
 
 class _DriversPageState extends ConsumerState<DriversPage> {
-  // No local state needed, using providers instead
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: ref.read(driverSearchProvider));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<Driver> _getFilteredDrivers(List<Driver> drivers, String searchQuery, String selectedFilter) {
     return drivers.where((d) {
-      final nameMatch = d.name.toLowerCase().contains(
-            searchQuery.toLowerCase(),
-          );
+      final query = searchQuery.toLowerCase();
+      final nameMatch = d.name.toLowerCase().contains(query) || 
+                       d.email.toLowerCase().contains(query) ||
+                       d.id.toLowerCase().contains(query);
 
       final statusMatch = selectedFilter == 'All' ||
           (selectedFilter == 'Available' && d.isAvailable) ||
@@ -46,10 +60,9 @@ class _DriversPageState extends ConsumerState<DriversPage> {
 
   @override
   Widget build(BuildContext context) {
-    final drivers = ref.watch(driverProvider);
+    final driversAsync = ref.watch(driversStreamProvider);
     final searchQuery = ref.watch(driverSearchProvider);
     final selectedFilter = ref.watch(driverFilterProvider);
-    final filteredDrivers = _getFilteredDrivers(drivers, searchQuery, selectedFilter);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,25 +79,32 @@ class _DriversPageState extends ConsumerState<DriversPage> {
         ),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // Sticky Header
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildSearchAndFilter(filteredDrivers.length, drivers),
-          ),
-          Expanded(
-            child: filteredDrivers.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filteredDrivers.length,
-                    itemBuilder: (context, index) =>
-                        _buildDriverCard(filteredDrivers[index]),
-                  ),
-          ),
-        ],
+      body: driversAsync.when(
+        data: (drivers) {
+          final filteredDrivers = _getFilteredDrivers(drivers, searchQuery, selectedFilter);
+          return Column(
+            children: [
+              // Sticky Header
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSearchAndFilter(filteredDrivers.length, drivers),
+              ),
+              Expanded(
+                child: filteredDrivers.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filteredDrivers.length,
+                        itemBuilder: (context, index) =>
+                            _buildDriverCard(filteredDrivers[index]),
+                      ),
+              ),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(child: Text('Error: $err')),
       ),
     );
   }
@@ -107,6 +127,7 @@ class _DriversPageState extends ConsumerState<DriversPage> {
             height: 46,
             alignment: Alignment.center,
             child: TextField(
+              controller: _searchController,
               onChanged: (val) => ref.read(driverSearchProvider.notifier).state = val,
               decoration: const InputDecoration(
                 hintText: 'Search drivers by name',
@@ -325,11 +346,7 @@ class _DriversPageState extends ConsumerState<DriversPage> {
                                   fit: BoxFit.cover,
                                 )
                               : (driver.image != null
-                                  ? Image.network(
-                                      driver.image!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (c, e, s) => _defaultAvatar(),
-                                    )
+                                  ? _buildImage(driver.image!)
                                   : _defaultAvatar()),
                         ),
                       ),
@@ -396,6 +413,25 @@ class _DriversPageState extends ConsumerState<DriversPage> {
             );
   }
 
+  Widget _buildImage(String source) {
+    if (source.startsWith('http')) {
+      return Image.network(
+        source,
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => _defaultAvatar(),
+      );
+    }
+    try {
+      return Image.memory(
+        base64Decode(source),
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => _defaultAvatar(),
+      );
+    } catch (e) {
+      return _defaultAvatar();
+    }
+  }
+
   Widget _defaultAvatar() {
     return Container(
       color: Colors.grey.shade100,
@@ -429,15 +465,12 @@ class _DriversPageState extends ConsumerState<DriversPage> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              ref.read(driverProvider.notifier).deleteDriver(driver.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Driver removed'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            onPressed: () async {
+              await ref.read(driverActionProvider.notifier).deleteDriver(driver.id);
+              if (context.mounted) {
+                Navigator.pop(context);
+                AppToast.show(context, 'Driver removed successfully');
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -469,45 +502,38 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
   void _handleSave() async {
     final formState = ref.read(driverFormProvider);
 
-    if (formState.name.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name')),
-      );
+    if (formState.name.trim().isEmpty || formState.email.trim().isEmpty || formState.password.trim().isEmpty) {
+      AppToast.show(context, 'Name, Email and Password are required', isError: true);
       return;
     }
 
-    ref.read(driverFormProvider.notifier).setLoading(true);
-
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 1000));
-
     final newDriver = Driver(
-      id: formState.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: formState.id ?? '', // Will be generated in FirebaseService if empty
       name: formState.name,
       phone: formState.phone,
+      email: formState.email,
+      password: formState.password,
       license: formState.license,
       isAvailable: true,
       pickedImage: formState.pickedImage,
       image: formState.existingImageUrl,
     );
 
-    if (formState.id == null) {
-      ref.read(driverProvider.notifier).addDriver(newDriver);
-    } else {
-      ref.read(driverProvider.notifier).updateDriver(newDriver);
-    }
+    await ref.read(driverActionProvider.notifier).saveDriver(newDriver);
 
     if (mounted) {
-      ref.read(driverFormProvider.notifier).setLoading(false);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(formState.id == null
+      final state = ref.read(driverActionProvider);
+      if (!state.hasError) {
+        Navigator.pop(context);
+        AppToast.show(
+          context,
+          formState.id == null
               ? 'Driver added successfully'
-              : 'Driver updated successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+              : 'Driver updated successfully',
+        );
+      } else {
+        AppToast.show(context, 'Error: ${state.error}', isError: true);
+      }
     }
   }
 
@@ -519,9 +545,7 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
+        AppToast.show(context, 'Error picking image: $e', isError: true);
       }
     }
   }
@@ -545,8 +569,7 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
               child: formState.pickedImage != null
                   ? Image.file(File(formState.pickedImage!.path),
                       fit: BoxFit.contain)
-                  : Image.network(formState.existingImageUrl!,
-                      fit: BoxFit.contain),
+                  : _buildImage(formState.existingImageUrl!, fit: BoxFit.contain),
             ),
             Positioned(
               top: 10,
@@ -629,6 +652,25 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
         ),
       ),
     );
+  }
+
+  Widget _buildImage(String source, {BoxFit fit = BoxFit.cover}) {
+    if (source.startsWith('http')) {
+      return Image.network(
+        source,
+        fit: fit,
+        errorBuilder: (c, e, s) => _defaultAvatar(),
+      );
+    }
+    try {
+      return Image.memory(
+        base64Decode(source),
+        fit: fit,
+        errorBuilder: (c, e, s) => _defaultAvatar(),
+      );
+    } catch (e) {
+      return _defaultAvatar();
+    }
   }
 
   Widget _defaultAvatar() {
@@ -723,11 +765,9 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
                                               fit: BoxFit.cover,
                                             )
                                           : (formState.existingImageUrl != null
-                                              ? Image.network(
+                                              ? _buildImage(
                                                   formState.existingImageUrl!,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (c, e, s) =>
-                                                      _defaultAvatar(),
                                                 )
                                               : _defaultAvatar()),
                                     ),
@@ -843,8 +883,28 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
                     ),
                     const SizedBox(height: 20),
                     AppTextField(
+                      label: 'Email Address',
+                      hint: 'john.doe@example.com',
+                      initialValue: formState.email,
+                      onChanged: (val) => ref
+                          .read(driverFormProvider.notifier)
+                          .updateEmail(val),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 20),
+                    AppTextField(
+                      label: 'Password',
+                      hint: '••••••••',
+                      initialValue: formState.password,
+                      onChanged: (val) => ref
+                          .read(driverFormProvider.notifier)
+                          .updatePassword(val),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 20),
+                    AppTextField(
                       label: 'Phone Number',
-                      hint: '+1 (555) 000-0000',
+                      hint: '+91 98765 43210',
                       initialValue: formState.phone,
                       onChanged: (val) => ref
                           .read(driverFormProvider.notifier)
@@ -867,7 +927,7 @@ class _AddDriverSheetState extends ConsumerState<AddDriverSheet> {
                           : 'Update Driver',
                       onPressed: _handleSave,
                       icon: Icons.save_outlined,
-                      isLoading: formState.isLoading,
+                      isLoading: ref.watch(driverActionProvider).isLoading,
                     ),
                     const SizedBox(height: 32),
                   ],

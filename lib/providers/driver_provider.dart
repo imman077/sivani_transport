@@ -1,50 +1,39 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sivani_transport/models/driver.dart';
 
-class DriverNotifier extends StateNotifier<List<Driver>> {
-  DriverNotifier() : super([
-    Driver(
-      id: '1',
-      name: 'Johnathan Miller',
-      phone: '+1 (555) 012-3456',
-      license: 'DL-8829102',
-      isAvailable: false,
-      image: 'https://i.pravatar.cc/600?u=john',
-    ),
-    Driver(
-      id: '2',
-      name: 'Sarah Thompson',
-      phone: '+1 (555) 045-8821',
-      license: 'DL-1102934',
-      isAvailable: true,
-      image: 'https://i.pravatar.cc/600?u=sarah',
-    ),
-    Driver(
-      id: '3',
-      name: 'Michael Chen',
-      phone: '+1 (555) 098-7744',
-      license: 'DL-9920311',
-      isAvailable: false,
-      image: 'https://i.pravatar.cc/600?u=michael',
-    ),
-  ]);
+import 'package:sivani_transport/providers/user_provider.dart';
+import 'package:sivani_transport/services/firebase_service.dart';
 
-  void addDriver(Driver driver) {
-    state = [driver, ...state];
+// Stream provider for drivers
+final driversStreamProvider = StreamProvider<List<Driver>>((ref) {
+  return ref.watch(firebaseServiceProvider).getDrivers();
+});
+
+class DriverNotifier extends StateNotifier<AsyncValue<void>> {
+  final FirebaseService _service;
+  DriverNotifier(this._service) : super(const AsyncValue.data(null));
+
+  Future<void> saveDriver(Driver driver) async {
+    state = const AsyncValue.loading();
+    try {
+      await _service.saveDriver(driver);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
 
-  void updateDriver(Driver driver) {
-    state = [
-      for (final d in state)
-        if (d.id == driver.id) driver else d
-    ];
-  }
-
-  void deleteDriver(String id) {
-    state = state.where((driver) => driver.id != id).toList();
+  Future<void> deleteDriver(String id) async {
+    state = const AsyncValue.loading();
+    try {
+      await _service.deleteDriver(id);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
 }
 
-final driverProvider = StateNotifierProvider<DriverNotifier, List<Driver>>((ref) {
-  return DriverNotifier();
+final driverActionProvider = StateNotifierProvider<DriverNotifier, AsyncValue<void>>((ref) {
+  return DriverNotifier(ref.watch(firebaseServiceProvider));
 });

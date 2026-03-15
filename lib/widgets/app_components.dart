@@ -14,6 +14,7 @@ class AppTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final VoidCallback? onTap;
   final ValueChanged<String>? onChanged;
+  final Iterable<String>? autofillHints;
 
   const AppTextField({
     super.key,
@@ -28,6 +29,7 @@ class AppTextField extends StatefulWidget {
     this.keyboardType,
     this.onTap,
     this.onChanged,
+    this.autofillHints,
   });
 
   @override
@@ -36,6 +38,7 @@ class AppTextField extends StatefulWidget {
 
 class _AppTextFieldState extends State<AppTextField> {
   TextEditingController? _internalController;
+  bool _obscureText = false;
 
   TextEditingController get _effectiveController =>
       widget.controller ?? _internalController!;
@@ -43,6 +46,7 @@ class _AppTextFieldState extends State<AppTextField> {
   @override
   void initState() {
     super.initState();
+    _obscureText = widget.obscureText;
     if (widget.controller == null) {
       _internalController = TextEditingController(text: widget.initialValue);
     }
@@ -55,6 +59,9 @@ class _AppTextFieldState extends State<AppTextField> {
       if (widget.initialValue != oldWidget.initialValue) {
         _internalController?.text = widget.initialValue ?? '';
       }
+    }
+    if (widget.obscureText != oldWidget.obscureText) {
+      setState(() => _obscureText = widget.obscureText);
     }
   }
 
@@ -83,10 +90,11 @@ class _AppTextFieldState extends State<AppTextField> {
         TextField(
           controller: _effectiveController,
           readOnly: widget.readOnly,
-          obscureText: widget.obscureText,
+          obscureText: _obscureText,
           keyboardType: widget.keyboardType,
           onTap: widget.onTap,
           onChanged: widget.onChanged,
+          autofillHints: widget.autofillHints,
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 14,
@@ -101,7 +109,22 @@ class _AppTextFieldState extends State<AppTextField> {
                     color: AppColors.textPrimary.withValues(alpha: 0.6),
                   )
                 : null,
-            suffixIcon: widget.suffixIcon,
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _obscureText
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 20,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureText = !_obscureText;
+                      });
+                    },
+                  )
+                : widget.suffixIcon,
           ),
         ),
       ],
@@ -235,11 +258,12 @@ class _AppDatePickerState extends State<AppDatePicker> {
 
 class AppButton extends StatelessWidget {
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final IconData? icon;
   final Color? backgroundColor;
   final Color? foregroundColor;
   final double? height;
+  final double? borderRadius;
   final bool isLoading;
   final bool fullWidth;
 
@@ -251,6 +275,7 @@ class AppButton extends StatelessWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.height,
+    this.borderRadius,
     this.isLoading = false,
     this.fullWidth = true,
   });
@@ -262,7 +287,8 @@ class AppButton extends StatelessWidget {
       foregroundColor: foregroundColor,
       minimumSize: Size(0, height ?? 56),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadius ?? 12)),
       elevation: 0,
     );
 
@@ -350,17 +376,144 @@ class BrandedHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Container(
             decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.05),
+              color: AppColors.primary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              icon: const Icon(Icons.person_rounded, color: AppColors.primary),
               onPressed: () {
-                context.go('/');
+                context.push('/profile');
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+class AppDropdown<T> extends StatelessWidget {
+  final String label;
+  final String hint;
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final IconData? prefixIcon;
+  final bool readOnly;
+
+  const AppDropdown({
+    super.key,
+    this.label = '',
+    required this.hint,
+    this.value,
+    required this.items,
+    this.onChanged,
+    this.prefixIcon,
+    this.readOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        DropdownButtonFormField<T>(
+          initialValue: value,
+          items: items,
+          onChanged: readOnly ? null : onChanged,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.textSecondary,
+          ),
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: prefixIcon != null
+                ? Icon(
+                    prefixIcon,
+                    size: 20,
+                    color: AppColors.textPrimary.withValues(alpha: 0.6),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.blueGrey.withValues(alpha: 0.1),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.blueGrey.withValues(alpha: 0.1),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.5,
+              ),
+            ),
+            fillColor: Colors.white,
+            filled: true,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AppToast {
+  static void show(BuildContext context, String message, {bool isError = false}) {
+    // Clear existing snackbars
+    ScaffoldMessenger.of(context).clearSnackBars();
+    
+    // Create new snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? const Color(0xFFE11D48) : const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        duration: const Duration(seconds: 3),
+        elevation: 8,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

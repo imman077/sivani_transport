@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:sivani_transport/models/vehicle.dart';
 
 class VehicleFormState {
@@ -7,7 +8,9 @@ class VehicleFormState {
   final String regNumber;
   final String status;
   final String fuelType;
-  final double capacity;
+  final String capacityValue;
+  final String? image;
+  final XFile? pickedImage;
   final bool isLoading;
 
   VehicleFormState({
@@ -16,7 +19,9 @@ class VehicleFormState {
     this.regNumber = '',
     this.status = 'Idle',
     this.fuelType = 'Diesel',
-    this.capacity = 0.0,
+    this.capacityValue = '',
+    this.image,
+    this.pickedImage,
     this.isLoading = false,
   });
 
@@ -26,7 +31,9 @@ class VehicleFormState {
     String? regNumber,
     String? status,
     String? fuelType,
-    double? capacity,
+    String? capacityValue,
+    String? Function()? image,
+    XFile? Function()? pickedImage,
     bool? isLoading,
   }) {
     return VehicleFormState(
@@ -35,7 +42,9 @@ class VehicleFormState {
       regNumber: regNumber ?? this.regNumber,
       status: status ?? this.status,
       fuelType: fuelType ?? this.fuelType,
-      capacity: capacity ?? this.capacity,
+      capacityValue: capacityValue ?? this.capacityValue,
+      image: image != null ? image() : this.image,
+      pickedImage: pickedImage != null ? pickedImage() : this.pickedImage,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -52,7 +61,8 @@ class VehicleFormNotifier extends StateNotifier<VehicleFormState> {
         regNumber: vehicle.regNumber,
         status: vehicle.status,
         fuelType: vehicle.fuelType,
-        capacity: vehicle.capacity,
+        capacityValue: vehicle.capacity == 0.0 ? '' : vehicle.capacity.toString(),
+        image: vehicle.image,
       );
     } else {
       state = VehicleFormState();
@@ -62,12 +72,16 @@ class VehicleFormNotifier extends StateNotifier<VehicleFormState> {
   void updateModel(String model) => state = state.copyWith(model: model);
   void updateRegNumber(String regNumber) => state = state.copyWith(regNumber: regNumber);
   void updateFuelType(String fuelType) => state = state.copyWith(fuelType: fuelType);
-  void updateCapacity(String capacity) {
-    final double? val = double.tryParse(capacity);
-    if (val != null) {
-      state = state.copyWith(capacity: val);
-    }
-  }
+  void updateCapacity(String capacity) => state = state.copyWith(capacityValue: capacity);
+  void updateImage(XFile? pickedImage, {String? image}) => 
+    state = state.copyWith(
+      pickedImage: () => pickedImage, 
+      image: image != null ? () => image : null
+    );
+  void resetImage() => state = state.copyWith(
+    pickedImage: () => null,
+    image: () => null,
+  );
   void setLoading(bool loading) => state = state.copyWith(isLoading: loading);
 }
 
