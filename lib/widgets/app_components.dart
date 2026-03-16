@@ -288,7 +288,8 @@ class AppButton extends StatelessWidget {
       minimumSize: Size(0, height ?? 56),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(borderRadius ?? 12)),
+        borderRadius: BorderRadius.circular(borderRadius ?? 12),
+      ),
       elevation: 0,
     );
 
@@ -307,7 +308,7 @@ class AppButton extends StatelessWidget {
             children: [
               if (icon != null) ...[
                 Icon(icon, size: 18),
-                const SizedBox(width: 6),
+                if (label.isNotEmpty) const SizedBox(width: 6),
               ],
               Flexible(
                 child: Text(
@@ -338,59 +339,117 @@ class BrandedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            width: 1,
+          ),
+        ),
+      ),
       child: Row(
         children: [
+          // Elegant Logo Block
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.local_shipping_rounded,
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Sivani Transport',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const Spacer(),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.notifications_none_rounded,
-                  color: AppColors.textPrimary),
-              onPressed: () {},
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
+            height: 44,
+            width: 44,
+            padding: const EdgeInsets.all(4), // Reduced padding for larger appearance
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: IconButton(
-              icon: const Icon(Icons.person_rounded, color: AppColors.primary),
-              onPressed: () {
-                context.push('/profile');
-              },
-            ),
+            child: Image.asset('assets/images/logo1.png', fit: BoxFit.contain),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'SIVANI',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const Text(
+                'Transport',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          // Action Buttons with refined styling
+          _HeaderAction(icon: Icons.notifications_none_rounded, onTap: () {}),
+          const SizedBox(width: 8),
+          _HeaderAction(
+            icon: Icons.person_rounded,
+            isPrimary: true,
+            onTap: () {
+              context.push('/profile');
+            },
           ),
         ],
       ),
     );
   }
 }
+
+class _HeaderAction extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  const _HeaderAction({
+    required this.icon,
+    required this.onTap,
+    this.isPrimary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : Colors.grey.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isPrimary
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 22,
+            color: isPrimary ? AppColors.primary : AppColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AppDropdown<T> extends StatelessWidget {
   final String label;
   final String hint;
@@ -449,7 +508,10 @@ class AppDropdown<T> extends StatelessWidget {
                     color: AppColors.textPrimary.withValues(alpha: 0.6),
                   )
                 : null,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
@@ -479,17 +541,23 @@ class AppDropdown<T> extends StatelessWidget {
 }
 
 class AppToast {
-  static void show(BuildContext context, String message, {bool isError = false}) {
+  static void show(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
     // Clear existing snackbars
     ScaffoldMessenger.of(context).clearSnackBars();
-    
+
     // Create new snackbar
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(
-              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+              isError
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
               color: Colors.white,
               size: 20,
             ),
@@ -507,7 +575,9 @@ class AppToast {
             ),
           ],
         ),
-        backgroundColor: isError ? const Color(0xFFE11D48) : const Color(0xFF10B981),
+        backgroundColor: isError
+            ? const Color(0xFFE11D48)
+            : const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),

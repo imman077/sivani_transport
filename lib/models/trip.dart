@@ -19,6 +19,7 @@ class Trip {
   final String status;
   final Color statusColor;
 
+
   Trip({
     required this.id,
     required this.from,
@@ -60,6 +61,8 @@ class Trip {
     }
     return total;
   }
+
+  double get netBalance => totalPayments - totalExpenses;
 
   Trip copyWith({
     String? id,

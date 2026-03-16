@@ -70,11 +70,12 @@ class _DriversPageState extends ConsumerState<DriversPage> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         title: const Text(
-          'Driver Management',
+          'Drivers',
           style: TextStyle(
             color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            fontSize: 22,
+            letterSpacing: -0.5,
           ),
         ),
         elevation: 0,
@@ -118,50 +119,54 @@ class _DriversPageState extends ConsumerState<DriversPage> {
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
               border: Border.all(
-                color: Colors.blueGrey.withValues(alpha: 0.1),
+                color: Colors.blueGrey.withValues(alpha: 0.08),
                 width: 1,
               ),
             ),
-            height: 46,
+            height: 52,
             alignment: Alignment.center,
             child: TextField(
               controller: _searchController,
               onChanged: (val) => ref.read(driverSearchProvider.notifier).state = val,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               decoration: const InputDecoration(
-                hintText: 'Search drivers by name',
+                hintText: 'Search drivers',
                 hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                 prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey,
+                  Icons.search_rounded,
+                  color: AppColors.primary,
                   size: 20,
                 ),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
           const SizedBox(height: 16),
           AppButton(
-            label: 'Add New Driver',
+            label: 'Add Driver',
             onPressed: _showAddDriverForm,
             icon: Icons.add,
             height: 46,
           ),
           const SizedBox(height: 20),
           Container(
-            height: 44,
+            height: 48,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.blueGrey.withValues(alpha: 0.08),
-              ),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: _buildFilterTab('All', drivers.length, Icons.group_rounded)),
                 Expanded(child: _buildFilterTab('Available', drivers.where((d) => d.isAvailable).length, Icons.check_circle_rounded)),
