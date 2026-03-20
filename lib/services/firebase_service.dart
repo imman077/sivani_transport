@@ -6,6 +6,7 @@ import 'package:sivani_transport/models/app_user.dart';
 import 'package:sivani_transport/models/driver.dart';
 import 'package:sivani_transport/models/vehicle.dart';
 import 'package:sivani_transport/models/trip.dart';
+import 'package:sivani_transport/models/transporter.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -189,6 +190,49 @@ class FirebaseService {
   Future<void> deleteVehicle(String id) async {
     try {
       await _firestore.collection('vehicles').doc(id).delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // --- TRANSPORTER METHODS ---
+
+  Stream<List<Transporter>> getTransporters() {
+    return _firestore
+        .collection('transporters')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Transporter.fromMap(doc.data())).toList());
+  }
+
+  Future<void> saveTransporter(Transporter transporter) async {
+    try {
+      String transporterId = transporter.id.isEmpty 
+          ? 'TRN-${DateTime.now().millisecondsSinceEpoch}' 
+          : transporter.id;
+      
+      String? imageBase64 = transporter.image;
+
+      if (transporter.pickedImage != null) {
+        imageBase64 = await _convertImageToBase64(transporter.pickedImage!.path);
+      }
+
+      final newTransporter = transporter.copyWith(
+        id: transporterId,
+        image: imageBase64,
+      );
+
+      await _firestore.collection('transporters').doc(newTransporter.id).set({
+        ...newTransporter.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTransporter(String id) async {
+    try {
+      await _firestore.collection('transporters').doc(id).delete();
     } catch (e) {
       rethrow;
     }

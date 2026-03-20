@@ -494,7 +494,7 @@ class DashboardPage extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  trip.vehicle,
+                  '${trip.vehicle} • ${trip.loads} Loads',
                   style: TextStyle(
                     color: Colors.grey.shade400,
                     fontSize: 11,

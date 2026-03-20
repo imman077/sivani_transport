@@ -63,8 +63,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
-    if (user == null)
+    if (user == null) {
       return const Scaffold(body: Center(child: Text('No user logged in')));
+    }
 
     final isAdmin = user.role == 'Admin';
 

@@ -8,3 +8,6 @@ final vehicleFilterProvider = StateProvider<String>((ref) => 'All');
 
 final tripSearchProvider = StateProvider<String>((ref) => '');
 final tripFilterProvider = StateProvider<String>((ref) => 'Active');
+
+final transporterSearchProvider = StateProvider<String>((ref) => '');
+final transporterFilterProvider = StateProvider<String>((ref) => 'All');

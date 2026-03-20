@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 
 class AppTextField extends StatefulWidget {
   final String label;
@@ -15,6 +18,8 @@ class AppTextField extends StatefulWidget {
   final VoidCallback? onTap;
   final ValueChanged<String>? onChanged;
   final Iterable<String>? autofillHints;
+  final int maxLines;
+  final String? errorText;
 
   const AppTextField({
     super.key,
@@ -30,6 +35,8 @@ class AppTextField extends StatefulWidget {
     this.onTap,
     this.onChanged,
     this.autofillHints,
+    this.maxLines = 1,
+    this.errorText,
   });
 
   @override
@@ -95,6 +102,7 @@ class _AppTextFieldState extends State<AppTextField> {
           onTap: widget.onTap,
           onChanged: widget.onChanged,
           autofillHints: widget.autofillHints,
+          maxLines: widget.maxLines,
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 14,
@@ -125,6 +133,11 @@ class _AppTextFieldState extends State<AppTextField> {
                     },
                   )
                 : widget.suffixIcon,
+            errorText: widget.errorText,
+            errorStyle: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -584,6 +597,314 @@ class AppToast {
         duration: const Duration(seconds: 3),
         elevation: 8,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+}
+
+class AppImageWidget extends StatelessWidget {
+  final String? source;
+  final BoxFit fit;
+  final Widget? placeholder;
+  final double? width;
+  final double? height;
+
+  const AppImageWidget({
+    super.key,
+    this.source,
+    this.fit = BoxFit.cover,
+    this.placeholder,
+    this.width,
+    this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (source == null || source!.isEmpty) {
+      return placeholder ?? _defaultPlaceholder();
+    }
+
+    if (source!.startsWith('http')) {
+      return Image.network(
+        source!,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (c, e, s) => placeholder ?? _defaultPlaceholder(),
+      );
+    }
+
+    try {
+      return Image.memory(
+        base64Decode(source!),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (c, e, s) => placeholder ?? _defaultPlaceholder(),
+      );
+    } catch (e) {
+      return placeholder ?? _defaultPlaceholder();
+    }
+  }
+
+  Widget _defaultPlaceholder() {
+    return Container(
+      width: width,
+      height: height,
+      color: Colors.grey.shade100,
+      child: Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade300, size: 24),
+    );
+  }
+}
+
+class AppImagePicker extends StatelessWidget {
+  final XFile? pickedImage;
+  final String? imageUrl;
+  final Function(XFile?) onImagePicked;
+  final VoidCallback onImageDeleted;
+  final IconData placeholderIcon;
+  final double size;
+
+  const AppImagePicker({
+    super.key,
+    this.pickedImage,
+    this.imageUrl,
+    required this.onImagePicked,
+    required this.onImageDeleted,
+    this.placeholderIcon = Icons.person,
+    this.size = 120,
+  });
+
+  Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: source);
+      if (image != null) {
+        onImagePicked(image);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.show(context, 'Error picking image: $e', isError: true);
+      }
+    }
+  }
+
+  void _showImageSourceSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(context, ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt_outlined, color: Colors.teal),
+                ),
+                title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(context, ImageSource.camera);
+                },
+              ),
+              if (pickedImage != null || imageUrl != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                  ),
+                  title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onImageDeleted();
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showImagePreview(BuildContext context) {
+    if (pickedImage == null && imageUrl == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: pickedImage != null
+                  ? Image.file(File(pickedImage!.path), fit: BoxFit.contain)
+                  : AppImageWidget(source: imageUrl, fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black26,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasImage = pickedImage != null || imageUrl != null;
+
+    return Center(
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: hasImage ? () => _showImagePreview(context) : () => _showImageSourceSheet(context),
+            onLongPress: () => _showImageSourceSheet(context),
+            child: Stack(
+              children: [
+                Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: hasImage ? AppColors.primary : Colors.grey.shade200,
+                      width: 2.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: pickedImage != null
+                        ? Image.file(File(pickedImage!.path), fit: BoxFit.cover)
+                        : AppImageWidget(
+                            source: imageUrl, 
+                            placeholder: Container(
+                              color: Colors.white,
+                              child: Center(
+                                child: Icon(placeholderIcon, size: size * 0.4, color: Colors.grey.shade300),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: GestureDetector(
+                    onTap: () => _showImageSourceSheet(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasImage) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showImagePreview(context),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('Preview', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 16,
+                  color: Colors.grey.shade300,
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showImageSourceSheet(context),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Change', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -43,9 +43,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         _rememberMe = prefs.getBool(_keyRememberMe) ?? true;
         if (_rememberMe) {
           _emailController.text =
-              prefs.getString('${prefix}${_keyEmail}') ?? '';
+              prefs.getString('$prefix$_keyEmail') ?? '';
           _passwordController.text =
-              prefs.getString('${prefix}${_keyPassword}') ?? '';
+              prefs.getString('$prefix$_keyPassword') ?? '';
         }
       });
     }
@@ -66,14 +66,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     await prefs.setBool(_keyRememberMe, _rememberMe);
     if (_rememberMe) {
-      await prefs.setString('${prefix}${_keyEmail}', _emailController.text);
+      await prefs.setString('$prefix$_keyEmail', _emailController.text);
       await prefs.setString(
-        '${prefix}${_keyPassword}',
+        '$prefix$_keyPassword',
         _passwordController.text,
       );
     } else {
-      await prefs.remove('${prefix}${_keyEmail}');
-      await prefs.remove('${prefix}${_keyPassword}');
+      await prefs.remove('$prefix$_keyEmail');
+      await prefs.remove('$prefix$_keyPassword');
     }
     await prefs.setBool(_keyIsAdmin, isAdministrator);
   }
