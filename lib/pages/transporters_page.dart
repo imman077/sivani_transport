@@ -56,30 +56,33 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          'Transporters',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            letterSpacing: -0.5,
-          ),
-        ),
-        elevation: 0,
-      ),
+      resizeToAvoidBottomInset: false,
       body: transportersAsync.when(
         data: (transporters) {
           final filteredTransporters = _getFilteredTransporters(transporters, searchQuery, selectedFilter);
           return Column(
             children: [
-              // Sticky Header
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildSearchAndFilter(filteredTransporters.length, transporters),
+              MasterPageHeader(
+                searchController: _searchController,
+                searchHint: 'Search by Name',
+                onSearchChanged: (val) {
+                  ref.read(transporterSearchProvider.notifier).state = val;
+                  setState(() {});
+                },
+                onSearchCleared: () {
+                  _searchController.clear();
+                  ref.read(transporterSearchProvider.notifier).state = '';
+                  setState(() {});
+                },
+                addButtonLabel: 'Add Transporter',
+                onAddPressed: () => _showAddTransporterForm(),
+                selectedFilter: selectedFilter,
+                onFilterChanged: (val) => ref.read(transporterFilterProvider.notifier).state = val,
+                filters: [
+                  FilterTabItem(label: 'All', count: transporters.length, icon: Icons.group_rounded),
+                  FilterTabItem(label: 'Available', count: transporters.where((t) => t.isAvailable).length, icon: Icons.check_circle_rounded),
+                  FilterTabItem(label: 'Busy', count: transporters.where((t) => !t.isAvailable).length, icon: Icons.timer_rounded),
+                ],
               ),
               Expanded(
                 child: filteredTransporters.isEmpty
@@ -87,8 +90,22 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: filteredTransporters.length,
-                        itemBuilder: (context, index) =>
-                            _buildTransporterCard(filteredTransporters[index]),
+                        itemBuilder: (context, index) {
+                          final transporter = filteredTransporters[index];
+                          return MasterCard(
+                            title: transporter.name,
+                            subtitle: transporter.phone,
+                            image: AppImageWidget(
+                              source: transporter.image,
+                              placeholder: Container(
+                                color: Colors.grey.shade100,
+                                child: Icon(Icons.business, color: Colors.grey.shade300, size: 30),
+                              ),
+                            ),
+                            onEdit: () => _showAddTransporterForm(transporter: transporter),
+                            onDelete: () => _showDeleteConfirmation(transporter),
+                          );
+                        },
                       ),
               ),
             ],
@@ -96,132 +113,6 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
-      ),
-    );
-  }
-
-  Widget _buildSearchAndFilter(int transporterCount, List<Transporter> transporters) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(
-                color: Colors.blueGrey.withValues(alpha: 0.08),
-                width: 1,
-              ),
-            ),
-            height: 52,
-            alignment: Alignment.center,
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) => ref.read(transporterSearchProvider.notifier).state = val,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              decoration: const InputDecoration(
-                hintText: 'Search transporters',
-                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          AppButton(
-            label: 'Add Transporter',
-            onPressed: _showAddTransporterForm,
-            icon: Icons.add_business_outlined,
-            height: 46,
-          ),
-          const SizedBox(height: 20),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Expanded(child: _buildFilterTab('All', transporters.length, Icons.group_rounded)),
-                Expanded(child: _buildFilterTab('Available', transporters.where((t) => t.isAvailable == true).length, Icons.check_circle_rounded)),
-                Expanded(child: _buildFilterTab('Busy', transporters.where((t) => t.isAvailable == false).length, Icons.timer_rounded)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterTab(String label, int count, IconData icon) {
-    final selectedFilter = ref.watch(transporterFilterProvider);
-    final bool isSelected = selectedFilter == label;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => ref.read(transporterFilterProvider.notifier).state = label,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isSelected ? Colors.white : Colors.blueGrey.shade400,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: 11,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: isSelected 
-                    ? Colors.white.withValues(alpha: 0.15) 
-                    : Colors.blueGrey.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -264,160 +155,6 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
     );
   }
 
-  Widget _buildStatusBadge(bool isAvailable) {
-    final baseColor = isAvailable ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: baseColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: baseColor.withValues(alpha: 0.2), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: baseColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            isAvailable ? 'Available' : 'Busy',
-            style: TextStyle(
-              color: baseColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTransporterCard(Transporter transporter) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Avatar Section
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AppImageWidget(
-                  source: transporter.image,
-                  placeholder: Container(
-                    color: Colors.grey.shade100,
-                    child: Icon(Icons.business, color: Colors.grey.shade300, size: 30),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Info Section
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    transporter.name,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.phone_rounded,
-                          size: 13, color: Colors.blueGrey.shade300),
-                      const SizedBox(width: 6),
-                      Text(
-                        transporter.phone,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.blueGrey.shade400,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _buildStatusBadge(transporter.isAvailable == true),
-                ],
-              ),
-            ),
-            // Action Section
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildActionButton(
-                  Icons.edit_rounded,
-                  const Color(0xFFEFF6FF),
-                  const Color(0xFF2563EB),
-                  () => _showAddTransporterForm(transporter: transporter),
-                ),
-                const SizedBox(height: 8),
-                _buildActionButton(
-                  Icons.delete_outline_rounded,
-                  const Color(0xFFFFF1F2),
-                  const Color(0xFFE11D48),
-                  () => _showDeleteConfirmation(transporter),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton(IconData icon, Color bgColor, Color iconColor, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 18, color: iconColor),
-      ),
-    );
-  }
-
   void _showDeleteConfirmation(Transporter transporter) {
     showDialog(
       context: context,
@@ -431,7 +168,7 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
           ),
           TextButton(
             onPressed: () async {
-              await ref.read(transporterActionProvider.notifier).deleteTransporter(transporter.id);
+              await ref.read(transporterActionProvider.notifier).deleteTransporter(transporter.id, transporter.name);
               if (context.mounted) {
                 Navigator.pop(context);
                 AppToast.show(context, 'Transporter deleted successfully');

@@ -67,7 +67,7 @@ class AppUser {
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
       password: map['password'] ?? '',
-      role: map['role'] ?? 'Driver',
+      role: map['role'] ?? '',
       license: map['license'] ?? '',
       image: map['image'],
       registrationDate: map['registrationDate'] != null 

@@ -26,6 +26,13 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     state = user;
   }
 
+  Future<void> fetchProfile(String email) async {
+    final user = await _firebaseService.getUserByEmail(email);
+    if (user != null) {
+      state = user;
+    }
+  }
+
   void logout() {
     state = null;
   }

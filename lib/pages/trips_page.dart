@@ -5,12 +5,10 @@ import 'package:sivani_transport/models/trip.dart';
 import 'package:sivani_transport/providers/trip_provider.dart';
 import 'package:sivani_transport/providers/search_provider.dart';
 import 'package:sivani_transport/providers/auth_provider.dart';
-import 'package:sivani_transport/providers/vehicle_provider.dart';
-import 'package:sivani_transport/providers/driver_provider.dart';
 import 'package:sivani_transport/models/app_user.dart';
-import 'package:sivani_transport/providers/transporter_provider.dart';
-import 'package:sivani_transport/models/vehicle.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 
 class TripsPage extends ConsumerStatefulWidget {
   const TripsPage({super.key});
@@ -28,6 +26,14 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     _searchController = TextEditingController(
       text: ref.read(tripSearchProvider),
     );
+
+    // Fetch profile if name is missing for a logged in driver
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(authProvider);
+      if (user != null && user.role == 'Driver' && user.name.isEmpty) {
+        ref.read(authProvider.notifier).fetchProfile(user.email);
+      }
+    });
   }
 
   @override
@@ -42,9 +48,12 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     String selectedStatus,
   ) {
     // Status Filter
-    Iterable<Trip> result = selectedStatus == 'Active'
-        ? trips.where((trip) => trip.status != 'Completed')
-        : trips.where((trip) => trip.status == 'Completed');
+    Iterable<Trip> result = trips;
+    if (selectedStatus == 'Active') {
+      result = trips.where((trip) => trip.status != 'Completed');
+    } else if (selectedStatus == 'Completed') {
+      result = trips.where((trip) => trip.status == 'Completed');
+    }
 
     // Search Filter
     if (searchQuery.isNotEmpty) {
@@ -103,62 +112,11 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     Trip? trip,
     bool isReadOnly = false,
   }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      useRootNavigator: true,
-      backgroundColor: Colors.white,
-      clipBehavior: Clip.antiAliasWithSaveLayer,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => TripWizardSheet(
-        key: ValueKey(trip?.id ?? 'new_trip'),
-        isEditing: isEditing,
-        trip: trip,
-        isReadOnly: isReadOnly,
-      ),
-    );
+    context.push('/trips/add', extra: {'trip': trip, 'isReadOnly': isReadOnly});
   }
 
   void _showToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF10B981),
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: const Duration(seconds: 2),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      ),
-    );
+    AppToast.show(context, message);
   }
 
   @override
@@ -166,269 +124,109 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     final trips = ref.watch(tripProvider);
     final searchQuery = ref.watch(tripSearchProvider);
     final selectedStatus = ref.watch(tripFilterProvider);
-    final filteredTrips = _getFilteredTrips(trips, searchQuery, selectedStatus);
 
     final user = ref.watch(authProvider);
     final isAdmin = (user?.role ?? '').trim().toLowerCase() == 'admin';
 
-    final displayTrips = isAdmin
-        ? filteredTrips
-        : filteredTrips.where((trip) {
-            final userId = user?.id;
-            if (userId == null) return false;
+    // 1. Role-based Visibility (Admin see all, Driver see assigned by name)
+    final visibilityFilteredTrips = isAdmin
+        ? trips
+        : trips.where((t) => t.driver.trim().toLowerCase() == (user?.name ?? '').trim().toLowerCase()).toList();
 
-            final isDriver = trip.driverId == userId;
-
-            // Priority: Filter by ID if available (Driver)
-            if (isDriver) {
-              return true;
-            }
-
-            // Fallback: Filter by name for legacy data or if ID is missing
-            final userName = user?.name.toLowerCase() ?? '';
-            final tripDriverName = trip.driver.toLowerCase();
-            return tripDriverName.contains(userName);
-          }).toList();
+    // 2. Interactive Filter (Status + Search) applied to visibility
+    final displayTrips = _getFilteredTrips(visibilityFilteredTrips, searchQuery, selectedStatus);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      // floatingActionButton: isAdmin
-      //     ? Padding(
-      //         padding: const EdgeInsets.only(bottom: 0),
-      //         child: FloatingActionButton(
-      //           onPressed: _showAddTransporterDialog,
-      //           backgroundColor: AppColors.primary,
-      //           child: const Icon(Icons.business_outlined, color: Colors.white),
-      //           tooltip: 'Add Transporter',
-      //         ),
-      //       )
-      //     : null,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          'Trips',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            letterSpacing: -0.5,
-          ),
-        ),
-        // actions: [
-        //   IconButton(
-        //     icon: const Icon(
-        //       Icons.notifications_none_rounded,
-        //       color: AppColors.textPrimary,
-        //     ),
-        //     onPressed: () {},
-        //   ),
-        // ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Sticky Header Section
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Column(
-                children: [
-                  // Search Bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.blueGrey.withValues(alpha: 0.08),
-                        width: 1,
-                      ),
-                    ),
-                    height: 52,
-                    alignment: Alignment.center,
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) =>
-                          ref.read(tripSearchProvider.notifier).state = val,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Search trips...',
-                        hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Create New Trip Button (Admin Only)
-                  if (isAdmin) ...[
-                    AppButton(
-                      label: 'Create New Trip',
-                      onPressed: _showTripWizard,
-                      icon: Icons.add_task_outlined,
-                      height: 46,
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                  // Premium Segmented Filter
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildFilterTab(
-                            'Active',
-                            Icons.local_shipping_rounded,
-                            trips.where((t) => t.status != 'Completed').length,
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildFilterTab(
-                            'Completed',
-                            Icons.check_circle_rounded,
-                            trips.where((t) => t.status == 'Completed').length,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+      resizeToAvoidBottomInset: false,
+      body: Column(
+        children: [
+          MasterPageHeader(
+            searchController: _searchController,
+            searchHint: 'Search trips...',
+            onSearchChanged: (val) {
+              ref.read(tripSearchProvider.notifier).state = val;
+              setState(() {});
+            },
+            onSearchCleared: () {
+              _searchController.clear();
+              ref.read(tripSearchProvider.notifier).state = '';
+              setState(() {});
+            },
+            showAddButton: isAdmin,
+            addButtonLabel: 'Create New Trip',
+            onAddPressed: () => _showTripWizard(),
+            selectedFilter: selectedStatus,
+            onFilterChanged: (val) =>
+                ref.read(tripFilterProvider.notifier).state = val,
+            filters: [
+              FilterTabItem(
+                label: 'All',
+                count: visibilityFilteredTrips.length,
+                icon: Icons.all_inbox_rounded,
               ),
-            ),
-            // Scrollable List Section
-            Expanded(
-              child: displayTrips.isNotEmpty
-                  ? ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      itemCount: displayTrips.length,
-                      itemBuilder: (context, index) {
-                        return _buildTripCard(
-                          displayTrips[index],
-                          isAdmin,
-                          user,
-                        );
-                      },
-                    )
-                  : _buildEmptyState(
-                      icon: Icons.route_outlined,
-                      title: 'No trips found',
-                      subtitle:
-                          'Try adjusting your filters or create a new trip.',
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterTab(String label, IconData icon, int count) {
-    final selectedStatus = ref.watch(tripFilterProvider);
-    final bool isSelected = selectedStatus == label;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        if (!isSelected) {
-          ref.read(tripFilterProvider.notifier).state = label;
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected ? Colors.white : Colors.blueGrey.shade400,
+              FilterTabItem(
+                label: 'Active',
+                count: visibilityFilteredTrips.where((t) => t.status != 'Completed').length,
+                icon: Icons.local_shipping_rounded,
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : Colors.blueGrey.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  count.toString(),
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              FilterTabItem(
+                label: 'Completed',
+                count: visibilityFilteredTrips.where((t) => t.status == 'Completed').length,
+                icon: Icons.check_circle_rounded,
               ),
             ],
           ),
-        ),
+          // Scrollable List Section
+          Expanded(
+            child: displayTrips.isNotEmpty
+                ? ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    itemCount: displayTrips.length,
+                    itemBuilder: (context, index) {
+                      return _buildTripCard(displayTrips[index], isAdmin, user);
+                    },
+                  )
+                : _buildEmptyState(
+                    icon: Icons.route_outlined,
+                    title: 'No trips found',
+                    subtitle:
+                        'Try adjusting your filters or create a new trip.',
+                  ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildTripCard(Trip trip, bool isAdmin, AppUser? user) {
+    final bool isCompleted = trip.status.toLowerCase() == 'completed';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(28),
         child: Column(
           children: [
-            // 1. Blue Primary Header
+            // 1. Primary Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.primary, Color(0xFF2563EB)],
+                  colors: isCompleted
+                      ? [const Color(0xFF64748B), const Color(0xFF475569)]
+                      : [AppColors.primary, const Color(0xFF3B82F6)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -440,59 +238,52 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
+                          horizontal: 10,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          trip.id,
-                          style: const TextStyle(
+                          trip.id.toUpperCase(),
+                          style: GoogleFonts.inter(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                            letterSpacing: 1,
                           ),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+                          horizontal: 12,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(24),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              trip.status.toLowerCase() == 'completed'
+                              isCompleted
                                   ? Icons.check_circle_rounded
-                                  : Icons.fiber_manual_record,
-                              size: 8,
-                              color: trip.status.toLowerCase() == 'completed'
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFF10B981),
+                                  : Icons.local_shipping_rounded,
+                              size: 14,
+                              color: isCompleted
+                                  ? const Color(0xFF10B981)
+                                  : AppColors.primary,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Text(
                               trip.status.toUpperCase(),
-                              style: TextStyle(
-                                color: trip.status.toLowerCase() == 'completed'
-                                    ? const Color(0xFFEF4444)
-                                    : const Color(0xFF10B981),
-                                fontSize: 10,
+                              style: GoogleFonts.inter(
+                                color: isCompleted
+                                    ? const Color(0xFF10B981)
+                                    : AppColors.primary,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
                               ),
@@ -502,99 +293,22 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                       ),
                     ],
                   ),
-                  if (trip.transporter != null &&
-                      trip.transporter!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.business_outlined,
-                          size: 11,
-                          color: Colors.white70,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          trip.transporter!.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.location_on_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              trip.from,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const Text(
-                              'Departure',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildShortLocationBox(trip.from, 'Origin'),
                       const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        padding: EdgeInsets.symmetric(horizontal: 16),
                         child: Icon(
                           Icons.arrow_forward_rounded,
-                          color: Colors.white38,
-                          size: 16,
+                          color: Colors.white60,
+                          size: 20,
                         ),
                       ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              trip.to,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const Text(
-                              'Destination',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.flag_rounded,
-                        color: Colors.white,
-                        size: 20,
+                      _buildShortLocationBox(
+                        trip.to,
+                        'Destination',
+                        isEnd: true,
                       ),
                     ],
                   ),
@@ -602,30 +316,33 @@ class _TripsPageState extends ConsumerState<TripsPage> {
               ),
             ),
 
+            // 2. Financials Section
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              padding: const EdgeInsets.all(24),
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'NET BALANCE',
-                          style: TextStyle(
-                            fontSize: 10,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.textSecondary,
-                            letterSpacing: 0.5,
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.6,
+                            ),
+                            letterSpacing: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Text(
                           '₹${trip.netBalance.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 20,
+                          style: GoogleFonts.outfit(
+                            fontSize: 28,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF1E293B),
+                            color: AppColors.textPrimary,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -638,13 +355,11 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                       AppColors.primary,
                       () => _showTripWizard(isEditing: true, trip: trip),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     _buildModernAction(
-                      Icons.delete_outline_rounded,
-                      Colors.redAccent,
-                      () {
-                        _showDeleteConfirmation(trip.id);
-                      },
+                      Icons.delete_rounded,
+                      const Color(0xFFEF4444),
+                      () => _showDeleteConfirmation(trip.id, '${trip.from} to ${trip.to}'),
                     ),
                   ] else ...[
                     _buildModernAction(
@@ -653,7 +368,7 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                       () => _showTripWizard(
                         isEditing: true,
                         trip: trip,
-                        isReadOnly: false,
+                        isReadOnly: true,
                       ),
                     ),
                   ],
@@ -661,34 +376,43 @@ class _TripsPageState extends ConsumerState<TripsPage> {
               ),
             ),
 
-            // 3. Attached Separate Detail Boxes
-            Row(
-              children: [
-                _buildStatBox(
-                  Icons.event_note_rounded,
-                  'Date',
-                  trip.startDate != null
-                      ? '${trip.startDate!.day}/${trip.startDate!.month}/${trip.startDate!.year}'
-                      : '',
-                  isFirst: true,
+            // 3. Stats Section
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.blueGrey.withValues(alpha: 0.05),
+                  ),
                 ),
-                _buildStatBox(
-                  Icons.local_shipping_rounded,
-                  'Vehicle',
-                  trip.vehicle,
-                ),
-                _buildStatBox(
-                  Icons.face_rounded,
-                  'Driver',
-                  trip.driver.split(' ').first,
-                ),
-                _buildStatBox(
-                  Icons.unarchive_outlined,
-                  'Loads',
-                  trip.loads.toString(),
-                  isLast: true,
-                ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  _buildStatBox(
+                    Icons.calendar_today_rounded,
+                    'Date',
+                    trip.startDate != null
+                        ? '${trip.startDate!.day}/${trip.startDate!.month}'
+                        : '-',
+                  ),
+                  _buildStatBox(
+                    Icons.local_shipping_rounded,
+                    'Vehicle',
+                    trip.plate.isNotEmpty ? trip.plate : trip.vehicle,
+                  ),
+                  _buildStatBox(
+                    Icons.face_rounded,
+                    'Driver',
+                    trip.driver.split(' ').first,
+                  ),
+                  _buildStatBox(
+                    Icons.grid_view_rounded,
+                    'Loads',
+                    trip.loads.toString(),
+                    isLast: true,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -696,12 +420,46 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     );
   }
 
-  void _showDeleteConfirmation(String tripId) {
+  Widget _buildShortLocationBox(
+    String city,
+    String label, {
+    bool isEnd = false,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: isEnd
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          Text(
+            city,
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(String tripId, String route) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Trip'),
-        content: const Text('Are you sure you want to delete this trip?'),
+        content: Text('Are you sure you want to delete the trip: $route?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -709,7 +467,7 @@ class _TripsPageState extends ConsumerState<TripsPage> {
           ),
           TextButton(
             onPressed: () {
-              ref.read(tripProvider.notifier).deleteTrip(tripId);
+              ref.read(tripProvider.notifier).deleteTrip(tripId, route);
               Navigator.pop(context);
               _showToast('Trip deleted successfully');
             },
@@ -724,59 +482,46 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     IconData icon,
     String label,
     String value, {
-    bool isFirst = false,
     bool isLast = false,
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: Colors.transparent,
           border: Border(
-            top: BorderSide(color: Colors.blueGrey.withValues(alpha: 0.08)),
             right: isLast
                 ? BorderSide.none
-                : BorderSide(color: Colors.blueGrey.withValues(alpha: 0.12)),
+                : BorderSide(color: Colors.blueGrey.withValues(alpha: 0.1)),
           ),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 11, color: AppColors.primary),
-                const SizedBox(width: 4),
-                Text(
-                  label.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
+            Icon(
+              icon,
+              size: 14,
+              color: AppColors.primary.withValues(alpha: 0.6),
             ),
             const SizedBox(height: 6),
-            // Container(
-            //   margin: const EdgeInsets.symmetric(vertical: 6),
-            //   width: 30,
-            //   height: 1.5,
-            //   decoration: BoxDecoration(
-            //     color: AppColors.primary.withValues(alpha: 0.15),
-            //     borderRadius: BorderRadius.circular(1),
-            //   ),
-            // ),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF334155),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label.toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textSecondary.withValues(alpha: 0.5),
+                letterSpacing: 1,
+              ),
             ),
           ],
         ),
@@ -795,2227 +540,6 @@ class _TripsPageState extends ConsumerState<TripsPage> {
           border: Border.all(color: color.withValues(alpha: 0.1)),
         ),
         child: Icon(icon, size: 20, color: color),
-      ),
-    );
-  }
-}
-
-class TripWizardSheet extends ConsumerStatefulWidget {
-  final bool isEditing;
-  final Trip? trip;
-  final bool isReadOnly;
-  const TripWizardSheet({
-    super.key,
-    this.isEditing = false,
-    this.trip,
-    this.isReadOnly = false,
-  });
-
-  @override
-  ConsumerState<TripWizardSheet> createState() => _TripWizardSheetState();
-}
-
-class _TripWizardSheetState extends ConsumerState<TripWizardSheet> {
-  String _currentStep = 'summary'; // summary, details, expenses, payment
-  DateTime? _startDate;
-  DateTime? _endDate;
-  bool _isSaving = false;
-  bool _isCompleting = false;
-  bool _isReopening = false;
-  String? _selectedDriverId;
-  String? _selectedTransporterId;
-
-  void _handleSaveTrip() async {
-    final vList = ref.read(vehicleProvider);
-    final selV = vList.firstWhere(
-      (v) => '${v.regNumber} (${v.model})' == _vehicleController.text,
-      orElse: () => Vehicle(id: '', model: '', regNumber: '', fuelType: '', capacity: 0.0),
-    );
-    if (selV.capacity > 0) {
-      final outLoad = double.tryParse(_loadsController.text) ?? 0.0;
-      final inLoad = double.tryParse(_returnLoadsController.text) ?? 0.0;
-      if (outLoad > selV.capacity || inLoad > selV.capacity) {
-        _showToast('Load exceeds vehicle capacity (${selV.capacity} T)!', isError: true);
-        return;
-      }
-    }
-
-    setState(() => _isSaving = true);
-    try {
-      final tripNotifier = ref.read(tripProvider.notifier);
-
-      final newTrip = Trip(
-        id: widget.isEditing ? widget.trip!.id : '',
-        from: _fromController.text,
-        to: _toController.text,
-        vehicle: _vehicleController.text,
-        plate: 'ABC-1234',
-        driver: _driverController.text,
-        driverId: _selectedDriverId,
-        transporter: _transporterController.text,
-        transporterId: _selectedTransporterId,
-        startDate: _startDate,
-        endDate: _endDate,
-        startKm: double.tryParse(_startKmController.text) ?? 0.0,
-        endKm: double.tryParse(_endKmController.text) ?? 0.0,
-        diesel: double.tryParse(_dieselController.text) ?? 0.0,
-        outwardLoads: double.tryParse(_loadsController.text) ?? 0.0,
-        returnLoads: double.tryParse(_returnLoadsController.text) ?? 0.0,
-        hasReturn: _hasReturn,
-        expenseList: _expenseList,
-        paymentList: _paymentList,
-        initialCash: double.tryParse(_initialCashController.text) ?? 0.0,
-        status: widget.isEditing ? widget.trip!.status : 'Ongoing',
-        statusColor: widget.isEditing ? widget.trip!.statusColor : Colors.blue,
-      );
-
-      if (widget.isEditing) {
-        await tripNotifier.updateTrip(newTrip);
-      } else {
-        await tripNotifier.addTrip(newTrip);
-      }
-      _showToast(widget.isEditing ? 'Trip Updated' : 'Trip Added');
-      if (!mounted) return;
-      Navigator.pop(context);
-    } catch (e) {
-      _showToast('Error: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  void _handleCompleteTrip() async {
-    setState(() => _isCompleting = true);
-    try {
-      final tripNotifier = ref.read(tripProvider.notifier);
-      final trip = widget.trip!;
-      
-      final completedTrip = trip.copyWith(
-        status: 'Completed',
-        statusColor: const Color(0xFF10B981), // Green
-        endKm: double.tryParse(_endKmController.text) ?? trip.endKm,
-        outwardLoads: double.tryParse(_loadsController.text) ?? trip.outwardLoads,
-        returnLoads: double.tryParse(_returnLoadsController.text) ?? trip.returnLoads,
-        hasReturn: _hasReturn,
-      );
-
-      await tripNotifier.updateTrip(completedTrip);
-      _showToast('Trip Completed Successfully!');
-      if (!mounted) return;
-      Navigator.pop(context);
-    } catch (e) {
-      _showToast('Error completing trip: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isCompleting = false);
-    }
-  }
-
-  void _handleReopenTrip() async {
-    setState(() => _isReopening = true);
-    try {
-      final tripNotifier = ref.read(tripProvider.notifier);
-      final trip = widget.trip!;
-      
-      final reopenedTrip = trip.copyWith(
-        status: 'Ongoing',
-        statusColor: Colors.blue,
-      );
-
-      await tripNotifier.updateTrip(reopenedTrip);
-      _showToast('Trip Reopened successfully');
-      if (!mounted) return;
-      Navigator.pop(context);
-    } catch (e) {
-      _showToast('Error reopening trip: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isReopening = false);
-    }
-  }
-
-  void _showReopenConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.lock_open_rounded,
-                    color: Colors.blue,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Reopen Trip?',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'This will unlock the trip and mark it as Ongoing again. You will be able to edit all details.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppButton(
-                        label: 'Reopen',
-                        backgroundColor: Colors.blue,
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _handleReopenTrip();
-                        },
-                        height: 52,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCompletionConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Color(0xFF10B981),
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Complete Trip?',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Are you sure you want to finalize this trip? This will lock all details and mark it as completed in the logs.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                    color: AppColors.textSecondary.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text(
-                          'Keep Editing',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppButton(
-                        label: 'Complete',
-                        backgroundColor: const Color(0xFF10B981),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _handleCompleteTrip();
-                        },
-                        height: 52,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Controllers for all fields
-  late TextEditingController _startKmController;
-  late TextEditingController _endKmController;
-  late TextEditingController _dieselController;
-  late TextEditingController _fromController;
-  late TextEditingController _toController;
-  late TextEditingController _vehicleController;
-  late TextEditingController _driverController;
-  late TextEditingController _transporterController;
-  late TextEditingController _loadsController; // Outward
-  late TextEditingController _returnLoadsController; // Return
-  bool _hasReturn = false;
-
-  // Expenses Controllers
-  late TextEditingController _expenseItemController;
-  late TextEditingController _expenseAmountController;
-
-  // Payments & Cash Controllers
-  late TextEditingController _initialCashController;
-  late TextEditingController _paymentDescController;
-  late TextEditingController _paymentAmountController;
-
-  String _selectedExpenseLeg = 'Outward'; // Outward, Return
-
-
-  String _totalKms = '0';
-  String _mileage = '0.0';
-
-  List<Map<String, String>> _expenseList = [];
-  List<Map<String, String>> _paymentList = [];
-
-  int? _editingExpenseIndex;
-  int? _editingPaymentIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _startKmController = TextEditingController();
-    _endKmController = TextEditingController();
-    _dieselController = TextEditingController();
-    _fromController = TextEditingController();
-    _toController = TextEditingController();
-    _vehicleController = TextEditingController();
-    _driverController = TextEditingController();
-    _transporterController = TextEditingController();
-    _loadsController = TextEditingController();
-    _returnLoadsController = TextEditingController();
-    _expenseItemController = TextEditingController();
-    _expenseAmountController = TextEditingController();
-    _initialCashController = TextEditingController();
-    _paymentDescController = TextEditingController();
-    _paymentAmountController = TextEditingController();
-
-    if (widget.isEditing && widget.trip != null) {
-      final trip = widget.trip!;
-
-      _fromController.text = trip.from;
-      _toController.text = trip.to;
-      _vehicleController.text = trip.vehicle;
-      _driverController.text = trip.driver;
-      _selectedDriverId = trip.driverId;
-      _transporterController.text = trip.transporter ?? '';
-      _selectedTransporterId = trip.transporterId;
-
-      _startDate = trip.startDate;
-      _endDate = trip.endDate;
-
-      _startKmController.text = trip.startKm.toString();
-      _endKmController.text = trip.endKm.toString();
-      _dieselController.text = trip.diesel.toString();
-      _loadsController.text = trip.outwardLoads.toString();
-      _returnLoadsController.text = trip.returnLoads.toString();
-      _hasReturn = trip.hasReturn;
-
-      _expenseList = List.from(
-        trip.expenseList.map((e) => Map<String, String>.from(e)),
-      );
-      _paymentList = List.from(
-        trip.paymentList.map((p) => Map<String, String>.from(p)),
-      );
-
-      _initialCashController.text = trip.initialCash.toString();
-    } else {
-      // Clear fields for Add flow
-      _fromController.clear();
-      _toController.clear();
-      _vehicleController.clear();
-      _driverController.clear();
-      _transporterController.clear();
-      _selectedDriverId = null;
-      _selectedTransporterId = null;
-      _startKmController.clear();
-      _endKmController.clear();
-      _dieselController.clear();
-      _loadsController.clear();
-      _returnLoadsController.clear();
-      _hasReturn = false;
-
-      _expenseList = [];
-      _paymentList = [];
-      _initialCashController.clear();
-
-      _totalKms = '0';
-      _mileage = '0.0';
-      _startDate = null;
-      _endDate = null;
-    }
-
-    _startKmController.addListener(_calculateMetrics);
-    _endKmController.addListener(_calculateMetrics);
-    _dieselController.addListener(_calculateMetrics);
-    _initialCashController.addListener(() => setState(() {}));
-    _fromController.addListener(() => setState(() {}));
-    _toController.addListener(() => setState(() {}));
-    _vehicleController.addListener(() => setState(() {}));
-    _driverController.addListener(() => setState(() {}));
-    _transporterController.addListener(() => setState(() {}));
-    _loadsController.addListener(() => setState(() {}));
-    _returnLoadsController.addListener(() => setState(() {}));
-
-    // Initial calculation
-    _calculateMetrics();
-  }
-
-  @override
-  void dispose() {
-    _startKmController.dispose();
-    _endKmController.dispose();
-    _dieselController.dispose();
-    _fromController.dispose();
-    _toController.dispose();
-    _vehicleController.dispose();
-    _driverController.dispose();
-    _transporterController.dispose();
-    _loadsController.dispose();
-    _returnLoadsController.dispose();
-    _expenseItemController.dispose();
-    _expenseAmountController.dispose();
-    _initialCashController.dispose();
-    _paymentDescController.dispose();
-    _paymentAmountController.dispose();
-    super.dispose();
-  }
-
-  void _calculateMetrics() {
-    final double start = double.tryParse(_startKmController.text) ?? 0;
-    final double end = double.tryParse(_endKmController.text) ?? 0;
-    final double diesel = double.tryParse(_dieselController.text) ?? 0;
-
-    final double total = end - start;
-    final double mil = (diesel > 0 && total > 0) ? (total / diesel) : 0;
-
-    setState(() {
-      _totalKms = total > 0 ? total.toStringAsFixed(0) : '0';
-      _mileage = mil > 0 ? mil.toStringAsFixed(2) : '0.0';
-    });
-  }
-
-
-  void _switchStep(String step) {
-    setState(() {
-      _currentStep = step;
-    });
-  }
-
-  void _showToast(String message, {bool isError = false}) {
-    AppToast.show(context, message, isError: isError);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = ref.watch(authProvider);
-    final isAdmin = (user?.role ?? '').toLowerCase() == 'admin';
-    final isDriver = user?.role == 'Driver';
-
-    // Determine effective read-only state for different sections
-    final bool detailsReadOnly = widget.isReadOnly || isDriver;
-    final bool expensesReadOnly = widget.isReadOnly;
-    final bool paymentsReadOnly = widget.isReadOnly || isDriver;
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: _buildCurrentView(
-          isAdmin,
-          detailsReadOnly,
-          expensesReadOnly,
-          paymentsReadOnly,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCurrentView(
-    bool isAdmin,
-    bool detailsReadOnly,
-    bool expensesReadOnly,
-    bool paymentsReadOnly,
-  ) {
-    switch (_currentStep) {
-      case 'summary':
-        return _buildSummaryView(isAdmin);
-      case 'details':
-        return _buildDetailsEditView(detailsReadOnly);
-      case 'expenses':
-        return _buildExpensesEditView(expensesReadOnly);
-      case 'payment':
-        return _buildPaymentEditView(paymentsReadOnly);
-      default:
-        return _buildSummaryView(isAdmin);
-    }
-  }
-
-  // --- 1. Summary View ---
-  Widget _buildSummaryView(bool isAdmin) {
-    return Column(
-      children: [
-        _buildHeader(
-          widget.isEditing ? 'Edit Trip' : 'Add Trip',
-          onBack: () => Navigator.pop(context),
-          showBack: false,
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-                _buildStepCard(
-                  'Trip Logistics',
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${_fromController.text} to ${_toController.text}${_hasReturn ? ' • Round Trip' : ''}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                      ),
-                      if (_loadsController.text.isNotEmpty || _returnLoadsController.text.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              Icon(Icons.unarchive_outlined, size: 10, color: Colors.blue.shade700),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Load: ${_loadsController.text} T',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
-                              ),
-                              if (_hasReturn && _returnLoadsController.text.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Icon(Icons.unarchive_outlined, size: 10, color: Colors.orange.shade700),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Return: ${_returnLoadsController.text} T',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade700),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                  Icons.info_outline,
-                  'details',
-                  isCompleted: _fromController.text.isNotEmpty && _toController.text.isNotEmpty,
-                ),
-                _buildStepCard(
-                  'Expenses',
-                  () {
-                    if (_expenseList.isEmpty) return 'No expenses added';
-                    double outward = 0;
-                    double inward = 0;
-                    for (var e in _expenseList) {
-                      final amt = double.tryParse((e['amount'] ?? '0').replaceAll('₹', '')) ?? 0;
-                      if (e['leg'] == 'Outward') {
-                        outward += amt;
-                      } else if (e['leg'] == 'Return') {
-                        inward += amt;
-                      }
-                    }
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_expenseList.length} items • ₹${_calculateTotal(_expenseList)}',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                        ),
-                        if (_hasReturn && (outward > 0 || inward > 0))
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
-                              children: [
-                                _buildLegIndicator('A ➔ D', '₹${outward.toStringAsFixed(0)}', Colors.blue),
-                                const SizedBox(width: 8),
-                                _buildLegIndicator('D ➔ A', '₹${inward.toStringAsFixed(0)}', Colors.orange),
-                              ],
-                            ),
-                          ),
-                      ],
-                    );
-                  }(),
-                  Icons.receipt_long_outlined,
-                  'expenses',
-                  isCompleted: _expenseList.isNotEmpty,
-                ),
-              _buildStepCard(
-                'Payments',
-                () {
-                  double initial =
-                      double.tryParse(_initialCashController.text) ?? 0;
-                  double additional = 0;
-                  for (var item in _paymentList) {
-                    final amountStr =
-                        item['amount']
-                            ?.replaceAll('₹', '')
-                            .replaceAll(',', '') ??
-                        '0';
-                    additional += double.tryParse(amountStr) ?? 0;
-                  }
-                  double expenses =
-                      double.tryParse(_calculateTotal(_expenseList)) ?? 0;
-                  return 'Total: ₹${(initial + additional).toStringAsFixed(0)} • Bal: ₹${(initial + additional - expenses).toStringAsFixed(0)}';
-                }(),
-                Icons.account_balance_wallet_outlined,
-                'payment',
-                isCompleted:
-                    _initialCashController.text.isNotEmpty ||
-                    _paymentList.isNotEmpty,
-              ),
-              const SizedBox(height: 32),
-              if (!widget.isReadOnly) ...[
-                Row(
-                  children: [
-                    if (widget.isEditing && widget.trip!.status != 'Completed')
-                      Expanded(
-                        child: AppButton(
-                          label: 'Complete Trip',
-                          icon: Icons.check_circle_outline_rounded,
-                          backgroundColor: const Color(0xFF10B981),
-                          onPressed: _showCompletionConfirmation,
-                          isLoading: _isCompleting,
-                        ),
-                      )
-                    else if (widget.isEditing && widget.trip!.status == 'Completed' && isAdmin)
-                      Expanded(
-                        child: AppButton(
-                          label: 'Reopen Trip',
-                          icon: Icons.lock_open_rounded,
-                          backgroundColor: Colors.blue,
-                          onPressed: _showReopenConfirmation,
-                          isLoading: _isReopening,
-                        ),
-                      ),
-                    if (widget.isEditing && (widget.trip!.status != 'Completed' || isAdmin))
-                      const SizedBox(width: 12),
-                    Expanded(
-                      flex: (widget.isEditing && (widget.trip!.status != 'Completed' || isAdmin)) ? 1 : 2,
-                      child: AppButton(
-                        label: widget.isEditing ? 'Update Trip' : 'Add Trip',
-                        onPressed: _handleSaveTrip,
-                        isLoading: _isSaving,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-
-  Widget _buildDetailsEditView(bool isReadOnly) {
-    final vList = ref.watch(vehicleProvider);
-    final selV = vList.firstWhere(
-      (v) => '${v.regNumber} (${v.model})' == _vehicleController.text,
-      orElse: () => Vehicle(id: '', model: '', regNumber: '', fuelType: '', capacity: 0.0),
-    );
-    final capLimit = selV.capacity;
-    final outVal = double.tryParse(_loadsController.text) ?? 0.0;
-    final inVal = double.tryParse(_returnLoadsController.text) ?? 0.0;
-    final outErr = (capLimit > 0 && outVal > capLimit) ? 'Exceeds capacity (${capLimit.toStringAsFixed(1)} T)' : null;
-    final inErr = (capLimit > 0 && inVal > capLimit) ? 'Exceeds capacity (${capLimit.toStringAsFixed(1)} T)' : null;
-
-    return Column(
-      children: [
-        _buildHeader(
-          widget.isEditing ? 'Edit Trip Details' : 'Add Trip Details',
-          onBack: () => _switchStep('summary'),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppDatePicker(
-                        label: 'Start Date',
-                        hint: 'Select Date',
-                        initialDate: _startDate,
-                        enabled: !isReadOnly,
-                        onDateSelected: (date) {
-                          setState(() {
-                            _startDate = date;
-                            // Reset end date if it's now before start date
-                            if (_endDate != null &&
-                                _endDate!.isBefore(_startDate!)) {
-                              _endDate = null;
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppDatePicker(
-                        label: 'End Date',
-                        hint: 'Select Date',
-                        initialDate: _endDate,
-                        enabled: _startDate != null && !widget.isReadOnly,
-                        firstDate: _startDate,
-                        onDateSelected: (date) =>
-                            setState(() => _endDate = date),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'From',
-                        hint: 'Coimbatore',
-                        controller: _fromController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                    if (!isReadOnly)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        child: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              final temp = _fromController.text;
-                              _fromController.text = _toController.text;
-                              _toController.text = temp;
-                            });
-                          },
-                          icon: const Icon(
-                            Icons.swap_horiz_rounded,
-                            color: AppColors.primary,
-                          ),
-                          tooltip: 'Swap Route',
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'To',
-                        hint: 'Madurai',
-                        controller: _toController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ref.watch(vehicleProvider).isNotEmpty
-                    ? AppDropdown<String>(
-                        label: 'Vehicle',
-                        hint: 'Select Vehicle',
-                        prefixIcon: Icons.local_shipping_outlined,
-                        value: _vehicleController.text.isEmpty
-                            ? null
-                            : _vehicleController.text,
-                        readOnly: isReadOnly,
-                        items: ref.watch(vehicleProvider).map((v) {
-                          final value = '${v.regNumber} (${v.model})';
-                          return DropdownMenuItem(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _vehicleController.text = val);
-                          }
-                        },
-                      )
-                    : AppTextField(
-                        label: 'Vehicle',
-                        hint: 'TN-32 BB-1139',
-                        prefixIcon: Icons.local_shipping_outlined,
-                        controller: _vehicleController,
-                        readOnly: isReadOnly,
-                      ),
-                const SizedBox(height: 16),
-                ref
-                    .watch(driversStreamProvider)
-                    .when(
-                      data: (drivers) => AppDropdown<String>(
-                        label: 'Driver Name',
-                        hint: 'Select Driver',
-                        prefixIcon: Icons.badge_outlined,
-                        value: _selectedDriverId,
-                        readOnly: isReadOnly,
-                        items: drivers.map((d) {
-                          return DropdownMenuItem(
-                            value: d.id,
-                            child: Text(d.name),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final driver = drivers.firstWhere(
-                              (d) => d.id == val,
-                            );
-                            setState(() {
-                              _selectedDriverId = val;
-                              _driverController.text = driver.name;
-                            });
-                          }
-                        },
-                      ),
-                      loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => AppTextField(
-                        label: 'Driver Name',
-                        hint: 'P. Keerthivasan',
-                        prefixIcon: Icons.badge_outlined,
-                        controller: _driverController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                ref
-                    .watch(transportersStreamProvider)
-                    .when(
-                      data: (transporters) => AppDropdown<String>(
-                        label: 'Transporter Name',
-                        hint: 'Select Transporter',
-                        prefixIcon: Icons.business_outlined,
-                        value: _selectedTransporterId,
-                        readOnly: isReadOnly,
-                        items: [
-                          ...transporters.map((t) {
-                            return DropdownMenuItem(
-                              value: t.id,
-                              child: Text(t.name),
-                            );
-                          }),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            final transporter = transporters.firstWhere(
-                              (t) => t.id == val,
-                            );
-                            setState(() {
-                              _selectedTransporterId = val;
-                              _transporterController.text = transporter.name;
-                            });
-                          }
-                        },
-                      ),
-                      loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => AppTextField(
-                        label: 'Transporter Name',
-                        hint: 'Sivani Transport',
-                        prefixIcon: Icons.business_outlined,
-                        controller: _transporterController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Starting KMs',
-                        hint: '0',
-                        controller: _startKmController,
-                        prefixIcon: Icons.speed,
-                        keyboardType: TextInputType.number,
-                        readOnly: widget.isReadOnly,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Closing KMs',
-                        hint: '0',
-                        controller: _endKmController,
-                        prefixIcon: Icons.speed,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Diesel (Ltrs)',
-                        hint: '0.0',
-                        controller: _dieselController,
-                        prefixIcon: Icons.gas_meter_outlined,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: _hasReturn ? 'Arrival ➔ Destination Loads' : 'Number of Loads',
-                        hint: '0',
-                        controller: _loadsController,
-                        prefixIcon: Icons.unarchive_outlined,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) => setState(() {}),
-                        errorText: outErr,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                  ],
-                ),
-                if (_hasReturn) ...[
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'Destination ➔ Arrival Loads',
-                    hint: '0',
-                    controller: _returnLoadsController,
-                    prefixIcon: Icons.unarchive_outlined,
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) => setState(() {}),
-                    errorText: inErr,
-                    readOnly: isReadOnly,
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          'Include Return Trip (Back to Origin)?',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _hasReturn ? AppColors.primary : AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Switch.adaptive(
-                      value: _hasReturn,
-                      activeTrackColor: AppColors.primary,
-                      onChanged: (val) => setState(() => _hasReturn = val),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Total KMs',
-                        hint: '0',
-                        initialValue: _totalKms,
-                        prefixIcon: Icons.speed,
-                        readOnly: true,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Mileage (km/L)',
-                        hint: '0.0',
-                        initialValue: _mileage,
-                        prefixIcon: Icons.local_gas_station_outlined,
-                        readOnly: true,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExpensesEditView(bool isReadOnly) {
-    return Column(
-      children: [
-        _buildHeader(
-          widget.isEditing ? 'Edit Expenses Details' : 'Add Expenses Details',
-          onBack: () => _switchStep('summary'),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionLabel('ADD NEW EXPENSE'),
-                const SizedBox(height: 16),
-                AppDropdown<String>(
-                  label: 'Expense Category',
-                  hint: 'Select Category',
-                  value: () {
-                    final current = _expenseItemController.text;
-                    const options = [
-                      'Loading',
-                      'Unloading',
-                      'Temple',
-                      'Service',
-                      'Petrol / Diesel',
-                      'Others',
-                    ];
-                    if (options.contains(current)) return current;
-                    for (var opt in options) {
-                      if (current.startsWith('$opt ')) return opt;
-                    }
-                    return null;
-                  }(),
-                  readOnly: isReadOnly,
-                  items: [
-                    'Loading',
-                    'Unloading',
-                    'Temple',
-                    'Service',
-                    'Petrol / Diesel',
-                    'Others',
-                  ]
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _expenseItemController.text = val);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (_hasReturn) ...[
-                  AppDropdown<String>(
-                    label: 'Attributed To',
-                    hint: 'Select Leg',
-                    prefixIcon: Icons.alt_route_outlined,
-                    value: _selectedExpenseLeg,
-                    readOnly: isReadOnly,
-                    items: [
-                      const DropdownMenuItem(value: 'Outward', child: Text('Arrival ➔ Destination')),
-                      const DropdownMenuItem(value: 'Return', child: Text('Destination ➔ Arrival')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _selectedExpenseLeg = val);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                AppTextField(
-                  label: 'Amount',
-                  hint: '₹0.00',
-                  prefixIcon: Icons.currency_rupee,
-                  controller: _expenseAmountController,
-                  keyboardType: TextInputType.number,
-                  readOnly: isReadOnly,
-                ),
-                const SizedBox(height: 20),
-                AppButton(
-                  label: _editingExpenseIndex == null
-                      ? 'Add to List'
-                      : 'Update Item',
-                  onPressed: isReadOnly
-                      ? null
-                      : () {
-                          if (_expenseItemController.text.isNotEmpty &&
-                              _expenseAmountController.text.isNotEmpty) {
-                            setState(() {
-                              if (_editingExpenseIndex == null) {
-                                final baseTitle = _expenseItemController.text;
-                                // Count how many times this specific base category (or its numbered variants) exists
-                                final existingCount = _expenseList.where((e) {
-                                  final title = e['title'] ?? '';
-                                  return title == baseTitle ||
-                                      title.startsWith('$baseTitle ');
-                                }).length;
-
-                                final finalTitle =
-                                    '$baseTitle ${existingCount + 1}';
-
-                                _expenseList.add({
-                                  'title': finalTitle,
-                                  'amount': '₹${_expenseAmountController.text}',
-                                  'leg': _selectedExpenseLeg,
-                                });
-                                _showToast('Expense added to list');
-                              } else {
-                                // For editing, we keep the name as is or update it
-                                _expenseList[_editingExpenseIndex!] = {
-                                  'title': _expenseItemController.text,
-                                  'amount': '₹${_expenseAmountController.text}',
-                                  'leg': _selectedExpenseLeg,
-                                };
-                                _editingExpenseIndex = null;
-                                _showToast('Expense item updated');
-                              }
-                              _expenseItemController.clear();
-                              _expenseAmountController.clear();
-                              _selectedExpenseLeg = 'Outward';
-                            });
-                          } else {
-                            _showToast('Please fill all fields', isError: true);
-                          }
-                        },
-                  icon: _editingExpenseIndex == null ? Icons.add : Icons.check,
-                  height: 48,
-                ),
-                if (_editingExpenseIndex != null && !isReadOnly)
-                  _buildCancelButton(() {
-                    setState(() {
-                      _editingExpenseIndex = null;
-                      _expenseItemController.clear();
-                      _expenseAmountController.clear();
-                    });
-                  }),
-                const SizedBox(height: 32),
-                _buildSectionLabel('CURRENT EXPENSE LIST'),
-                const SizedBox(height: 16),
-                if (_expenseList.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text(
-                        'No expenses added yet',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ),
-                  )
-                else
-                  ...List.generate(_expenseList.length, (index) {
-                    final item = _expenseList[index];
-                    return _buildListItem(
-                      item['title']!,
-                      item['amount']!,
-                      leg: item['leg'] ?? 'Outward',
-                      onEdit: isReadOnly
-                          ? null
-                          : () {
-                              setState(() {
-                                _editingExpenseIndex = index;
-                                _expenseItemController.text = item['title']!;
-                                _expenseAmountController.text = item['amount']!.replaceAll('₹', '');
-                                _selectedExpenseLeg = item['leg'] ?? 'Outward';
-                              });
-                              _showExpenseEntryDialog(index: index);
-                            },
-                      onDelete: isReadOnly
-                          ? null
-                          : () {
-                              _showDeleteListItemConfirmation(
-                                title: 'Expense',
-                                itemName: item['title']!,
-                                onConfirm: () {
-                                  setState(() {
-                                    _expenseList.removeAt(index);
-                                    if (_editingExpenseIndex == index) {
-                                      _editingExpenseIndex = null;
-                                    }
-                                  });
-                                  _showToast('Expense removed');
-                                },
-                              );
-                            },
-                    );
-                  }),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Summary'.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Total Expenses',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          if (_hasReturn) ...[
-                            const SizedBox(height: 4),
-                            Builder(
-                              builder: (ctx) {
-                                double outAmt = 0;
-                                double inAmt = 0;
-                                for (var e in _expenseList) {
-                                  final amt = double.tryParse((e['amount'] ?? '0').replaceAll('₹', '')) ?? 0;
-                                  if (e['leg'] == 'Outward') {
-                                    outAmt += amt;
-                                  } else if (e['leg'] == 'Return') {
-                                    inAmt += amt;
-                                  }
-                                }
-                                if (outAmt == 0 && inAmt == 0) return const SizedBox.shrink();
-                                return Text(
-                                  'A ➔ D: ₹${outAmt.toStringAsFixed(0)} • D ➔ A: ₹${inAmt.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ],
-                      ),
-                      Text(
-                        '₹${_calculateTotal(_expenseList)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
-                          color: AppColors.primary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentEditView(bool isReadOnly) {
-    return Column(
-      children: [
-        _buildHeader(
-          widget.isEditing
-              ? 'Edit Payment & Cash Details'
-              : 'Add Payment & Cash Details',
-          onBack: () => _switchStep('summary'),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppTextField(
-                  label: 'Advance Received',
-                  hint: '1,000',
-                  prefixIcon: Icons.payments_outlined,
-                  controller: _initialCashController,
-                  keyboardType: TextInputType.number,
-                  readOnly: isReadOnly,
-                ),
-                const SizedBox(height: 32),
-                _buildSectionLabel('Additional Payments'),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.blue.shade50),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.add_card_rounded,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Add Transaction',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              color: AppColors.textPrimary,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      AppTextField(
-                        label: 'Description',
-                        hint: 'e.g. Fuel Advance / G-Pay',
-                        controller: _paymentDescController,
-                        readOnly: isReadOnly,
-                      ),
-                      const SizedBox(height: 16),
-                      AppTextField(
-                        label: 'Amount',
-                        hint: '0.00',
-                        prefixIcon: Icons.currency_rupee_rounded,
-                        controller: _paymentAmountController,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          if (_editingPaymentIndex != null)
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _editingPaymentIndex = null;
-                                      _paymentDescController.clear();
-                                      _paymentAmountController.clear();
-                                    });
-                                  },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.red,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            flex: _editingPaymentIndex != null ? 2 : 1,
-                            child: AppButton(
-                              label: _editingPaymentIndex == null
-                                  ? 'Record Payment'
-                                  : 'Save Changes',
-                              icon: _editingPaymentIndex == null
-                                  ? Icons.add_rounded
-                                  : Icons.check_circle_outline_rounded,
-                              onPressed: isReadOnly
-                                  ? null
-                                  : () {
-                                      if (_paymentDescController
-                                              .text
-                                              .isNotEmpty &&
-                                          _paymentAmountController
-                                              .text
-                                              .isNotEmpty) {
-                                        setState(() {
-                                          if (_editingPaymentIndex == null) {
-                                            _paymentList.add({
-                                              'title':
-                                                  _paymentDescController.text,
-                                              'amount':
-                                                  '₹${_paymentAmountController.text}',
-                                            });
-                                            _showToast('Payment entry added');
-                                          } else {
-                                            _paymentList[_editingPaymentIndex!] = {
-                                              'title':
-                                                  _paymentDescController.text,
-                                              'amount':
-                                                  '₹${_paymentAmountController.text}',
-                                            };
-                                            _editingPaymentIndex = null;
-                                            _showToast('Payment entry updated');
-                                          }
-                                          _paymentDescController.clear();
-                                          _paymentAmountController.clear();
-                                        });
-                                      } else {
-                                        _showToast(
-                                          'Please fill all fields',
-                                          isError: true,
-                                        );
-                                      }
-                                    },
-                              height: 50,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                if (_paymentList.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text(
-                        'No additional payments added yet',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ),
-                  )
-                else
-                  ...List.generate(_paymentList.length, (index) {
-                    final item = _paymentList[index];
-                    return _buildListItem(
-                      item['title']!,
-                      item['amount']!,
-                      onEdit: isReadOnly
-                          ? null
-                          : () {
-                              setState(() {
-                                _editingPaymentIndex = index;
-                                _paymentDescController.text = item['title']!;
-                                _paymentAmountController.text = item['amount']!.replaceAll('₹', '');
-                              });
-                              _showPaymentEntryDialog(index: index);
-                            },
-                      onDelete: isReadOnly
-                          ? null
-                          : () {
-                              _showDeleteListItemConfirmation(
-                                title: 'Payment',
-                                itemName: item['title']!,
-                                onConfirm: () {
-                                  setState(() {
-                                    _paymentList.removeAt(index);
-                                    if (_editingPaymentIndex == index) {
-                                      _editingPaymentIndex = null;
-                                    }
-                                  });
-                                  _showToast('Payment entry removed');
-                                },
-                              );
-                            },
-                    );
-                  }),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.blueGrey.withValues(alpha: 0.08),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSummaryRow('Total Payments', () {
-                        double initial =
-                            double.tryParse(_initialCashController.text) ?? 0;
-                        double additional = 0;
-                        for (var item in _paymentList) {
-                          final amountStr =
-                              item['amount']
-                                  ?.replaceAll('₹', '')
-                                  .replaceAll(',', '') ??
-                              '0';
-                          additional += double.tryParse(amountStr) ?? 0;
-                        }
-                        return '₹${(initial + additional).toStringAsFixed(0)}';
-                      }(), const Color(0xFF10B981)),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Divider(height: 1),
-                      ),
-                      _buildSummaryRow(
-                        'Total Expenses',
-                        '₹${_calculateTotal(_expenseList)}',
-                        const Color(0xFFEF4444),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Net Balance',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              () {
-                                double initial =
-                                    double.tryParse(
-                                      _initialCashController.text,
-                                    ) ??
-                                    0;
-                                double additional = 0;
-                                for (var item in _paymentList) {
-                                  final amountStr =
-                                      item['amount']
-                                          ?.replaceAll('₹', '')
-                                          .replaceAll(',', '') ??
-                                      '0';
-                                  additional += double.tryParse(amountStr) ?? 0;
-                                }
-                                double totalExpenses =
-                                    double.tryParse(
-                                      _calculateTotal(_expenseList),
-                                    ) ??
-                                    0;
-                                return '₹${(initial + additional - totalExpenses).toStringAsFixed(0)}';
-                              }(),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 20,
-                                color: AppColors.primary,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Reusable Components ---
-
-  Widget _buildHeader(String title, {required VoidCallback onBack, bool showBack = true}) {
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 30, 16, 10),
-          child: Row(
-            children: [
-              if (showBack)
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
-                  ),
-                  onPressed: onBack,
-                ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(left: showBack ? 0 : 12),
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Helper Methods ---
-
-  Widget _buildStepCard(
-    String title,
-    dynamic subtitle,
-    IconData icon,
-    String step, {
-    bool isCompleted = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        onTap: () => _switchStep(step),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? Colors.green.withValues(alpha: 0.1)
-                : AppColors.primary.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: isCompleted ? Colors.green : AppColors.primary,
-          ),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        subtitle: subtitle is Widget
-            ? subtitle
-            : Text(
-                subtitle.toString(),
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-        trailing: Icon(
-          Icons.chevron_right,
-          size: 20,
-          color: Colors.grey.shade400,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13, // Slightly larger
-        fontWeight: FontWeight.w900, // Extra bold
-        color: AppColors.textPrimary, // Darker
-        letterSpacing: 1.2,
-      ),
-    );
-  }
-
-  Widget _buildListItem(
-    String title,
-    String amount, {
-    String leg = 'Outward',
-    VoidCallback? onEdit,
-    VoidCallback? onDelete,
-  }) {
-    Color legColor = Colors.grey.shade400;
-    String legLabel = 'GEN';
-    if (leg == 'Outward') {
-      legColor = Colors.blue.shade600;
-      legLabel = 'A ➔ D';
-    } else if (leg == 'Return') {
-      legColor = Colors.orange.shade600;
-      legLabel = 'D ➔ A';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: legColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.receipt_long_outlined,
-              size: 20,
-              color: legColor,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: legColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        legLabel,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: legColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Transaction Verified',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                amount,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              if (!widget.isReadOnly) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildSmallIconButton(
-                      Icons.edit_rounded,
-                      Colors.blue.shade600,
-                      onEdit,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildSmallIconButton(
-                      Icons.delete_outline_rounded,
-                      Colors.red.shade600,
-                      onDelete,
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegIndicator(String label, String value, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.w900,
-              color: color.withValues(alpha: 0.8),
-            ),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary.withValues(alpha: 0.7),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSmallIconButton(
-    IconData icon,
-    Color color,
-    VoidCallback? onTap,
-  ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: color),
-        ),
-      ),
-    );
-  }
-
-  String _calculateTotal(List<Map<String, String>> list) {
-    double total = 0;
-    for (var item in list) {
-      final amountStr =
-          item['amount']?.replaceAll('₹', '').replaceAll(',', '') ?? '0';
-      total += double.tryParse(amountStr) ?? 0;
-    }
-    return total.toStringAsFixed(0);
-  }
-
-  Widget _buildCancelButton(VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Center(
-        child: TextButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.close_rounded, size: 16, color: Colors.red),
-          label: const Text(
-            'Cancel Edit',
-            style: TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            backgroundColor: Colors.red.withValues(alpha: 0.05),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: BorderSide(color: Colors.red.withValues(alpha: 0.15)),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showDeleteListItemConfirmation({
-    required String title,
-    required String itemName,
-    required VoidCallback onConfirm,
-  }) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete $title'),
-        content: Text('Are you sure you want to remove "$itemName" from the list?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onConfirm();
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showExpenseEntryDialog({int? index}) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: StatefulBuilder(
-          builder: (context, setDialogState) => Container(
-            padding: const EdgeInsets.all(24),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    index == null ? 'Add Expense' : 'Edit Expense',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppDropdown<String>(
-                    label: 'Expense Category',
-                    hint: 'Select Category',
-                    value: () {
-                      final current = _expenseItemController.text;
-                      const options = ['Loading', 'Unloading', 'Temple', 'Service', 'Petrol / Diesel', 'Others'];
-                      if (options.contains(current)) return current;
-                      for (var opt in options) {
-                        if (current.startsWith('$opt ')) return opt;
-                      }
-                      return null;
-                    }(),
-                    items: ['Loading', 'Unloading', 'Temple', 'Service', 'Petrol / Diesel', 'Others']
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => _expenseItemController.text = val);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  if (_hasReturn) ...[
-                    AppDropdown<String>(
-                      label: 'Attributed To',
-                      hint: 'Select Leg',
-                      value: _selectedExpenseLeg,
-                      items: const [
-                        DropdownMenuItem(value: 'Outward', child: Text('Arrival ➔ Destination')),
-                        DropdownMenuItem(value: 'Return', child: Text('Destination ➔ Arrival')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => _selectedExpenseLeg = val);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  AppTextField(
-                    label: 'Amount',
-                    hint: '₹0.00',
-                    prefixIcon: Icons.currency_rupee,
-                    controller: _expenseAmountController,
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            setState(() {
-                              _editingExpenseIndex = null;
-                              _expenseItemController.clear();
-                              _expenseAmountController.clear();
-                            });
-                          },
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: AppButton(
-                          label: index == null ? 'Add' : 'Save',
-                          onPressed: () {
-                            if (_expenseItemController.text.isNotEmpty && _expenseAmountController.text.isNotEmpty) {
-                              setState(() {
-                                final baseTitle = _expenseItemController.text;
-                                if (index == null) {
-                                  final existingCount = _expenseList.where((e) => (e['title'] ?? '').startsWith(baseTitle)).length;
-                                  final finalTitle = '$baseTitle ${existingCount + 1}';
-                                  _expenseList.add({
-                                    'title': finalTitle,
-                                    'amount': '₹${_expenseAmountController.text}',
-                                    'leg': _selectedExpenseLeg,
-                                  });
-                                } else {
-                                  _expenseList[index] = {
-                                    'title': baseTitle,
-                                    'amount': '₹${_expenseAmountController.text}',
-                                    'leg': _selectedExpenseLeg,
-                                  };
-                                }
-                                _editingExpenseIndex = null;
-                                _expenseItemController.clear();
-                                _expenseAmountController.clear();
-                              });
-                              Navigator.pop(context);
-                            }
-                          },
-                          height: 52,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showPaymentEntryDialog({int? index}) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  index == null ? 'Add Payment' : 'Edit Payment',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                AppTextField(
-                  label: 'Description',
-                  hint: 'e.g. Fuel Advance',
-                  controller: _paymentDescController,
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  label: 'Amount',
-                  hint: '0.00',
-                  prefixIcon: Icons.currency_rupee,
-                  controller: _paymentAmountController,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          setState(() {
-                            _editingPaymentIndex = null;
-                            _paymentDescController.clear();
-                            _paymentAmountController.clear();
-                          });
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: AppButton(
-                        label: index == null ? 'Add' : 'Save',
-                        onPressed: () {
-                          if (_paymentDescController.text.isNotEmpty && _paymentAmountController.text.isNotEmpty) {
-                            setState(() {
-                              if (index == null) {
-                                _paymentList.add({
-                                  'title': _paymentDescController.text,
-                                  'amount': '₹${_paymentAmountController.text}',
-                                });
-                              } else {
-                                _paymentList[index] = {
-                                  'title': _paymentDescController.text,
-                                  'amount': '₹${_paymentAmountController.text}',
-                                };
-                              }
-                              _editingPaymentIndex = null;
-                              _paymentDescController.clear();
-                              _paymentAmountController.clear();
-                            });
-                            Navigator.pop(context);
-                          }
-                        },
-                        height: 52,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

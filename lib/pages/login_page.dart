@@ -42,8 +42,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       setState(() {
         _rememberMe = prefs.getBool(_keyRememberMe) ?? true;
         if (_rememberMe) {
-          _emailController.text =
-              prefs.getString('$prefix$_keyEmail') ?? '';
+          _emailController.text = prefs.getString('$prefix$_keyEmail') ?? '';
           _passwordController.text =
               prefs.getString('$prefix$_keyPassword') ?? '';
         }
@@ -67,10 +66,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     await prefs.setBool(_keyRememberMe, _rememberMe);
     if (_rememberMe) {
       await prefs.setString('$prefix$_keyEmail', _emailController.text);
-      await prefs.setString(
-        '$prefix$_keyPassword',
-        _passwordController.text,
-      );
+      await prefs.setString('$prefix$_keyPassword', _passwordController.text);
     } else {
       await prefs.remove('$prefix$_keyEmail');
       await prefs.remove('$prefix$_keyPassword');
@@ -157,7 +153,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
           ),
-          
+
           Positioned(
             bottom: -50,
             left: -50,
@@ -178,278 +174,235 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
           // 2. Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 40),
-                  
-                  // Logo & Brand Section
-                  Center(
-                    child: TweenAnimationBuilder<double>(
-                      duration: const Duration(milliseconds: 1000),
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      curve: Curves.easeOutBack,
-                      builder: (context, value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
-                        );
-                      },
-                      child: Column(
-                        children: [
-                          Container(
-                            height: 90,
-                            width: 90,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.12),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Image.asset(
-                              'assets/images/logo1.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'SIVANI TRANSPORT',
-                            style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2.0,
-                              fontSize: 18,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            height: 4,
-                            width: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 48),
-
-                  // Login Form Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 40,
-                          offset: const Offset(0, 15),
-                        ),
-                      ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Welcome Back',
-                          style: GoogleFonts.outfit(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Please log in to manage your shipments.',
-                          style: GoogleFonts.inter(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
 
-                        // Role Toggle
+                        // Login Form Card
                         Container(
-                          height: 52,
-                          padding: const EdgeInsets.all(4),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(28),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 40,
+                                offset: const Offset(0, 15),
+                              ),
+                            ],
                           ),
-                          child: Stack(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              AnimatedAlign(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeOutCubic,
-                                alignment: isAdministrator
-                                    ? Alignment.centerLeft
-                                    : Alignment.centerRight,
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.06),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 2),
+                              Text(
+                                'Welcome Back',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please log in to manage your shipments.',
+                                style: GoogleFonts.inter(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+
+                              const SizedBox(height: 32),
+
+                              // Role Toggle
+                              Container(
+                                height: 52,
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    AnimatedAlign(
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      alignment: isAdministrator
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
+                                      child: FractionallySizedBox(
+                                        widthFactor: 0.5,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.06,
+                                                ),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildRoleTab(
+                                            'Admin',
+                                            Icons.shield_rounded,
+                                            isAdministrator,
+                                            () => _switchRole(true),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _buildRoleTab(
+                                            'Driver',
+                                            Icons.local_shipping_rounded,
+                                            !isAdministrator,
+                                            () => _switchRole(false),
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ),
+                                  ],
                                 ),
                               ),
+
+                              const SizedBox(height: 32),
+
+                              AutofillGroup(
+                                child: Column(
+                                  children: [
+                                    _buildModernTextField(
+                                      controller: _emailController,
+                                      label: 'Email Address',
+                                      hint: 'name@sivani.com',
+                                      icon: Icons.alternate_email_rounded,
+                                      keyboardType: TextInputType.emailAddress,
+                                      autofillHints: [AutofillHints.email],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _buildModernTextField(
+                                      controller: _passwordController,
+                                      label: 'Password',
+                                      hint: '••••••••',
+                                      icon: Icons.lock_outline_rounded,
+                                      obscureText: true,
+                                      autofillHints: [AutofillHints.password],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: _buildRoleTab(
-                                      'Admin',
-                                      Icons.shield_rounded,
-                                      isAdministrator,
-                                      () => _switchRole(true),
+                                  Transform.scale(
+                                    scale: 0.9,
+                                    child: Checkbox(
+                                      value: _rememberMe,
+                                      activeColor: AppColors.primary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      onChanged: (value) => setState(
+                                        () => _rememberMe = value ?? false,
+                                      ),
                                     ),
                                   ),
-                                  Expanded(
-                                    child: _buildRoleTab(
-                                      'Driver',
-                                      Icons.local_shipping_rounded,
-                                      !isAdministrator,
-                                      () => _switchRole(false),
+                                  Text(
+                                    'Stay signed in',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
+
+                              const SizedBox(height: 32),
+
+                              AppButton(
+                                label: 'LOG IN NOW',
+                                isLoading: _isLoading,
+                                onPressed: _handleLogin,
+                                icon: Icons.login_rounded,
+                                borderRadius: 16,
+                                height: 58,
+                              ),
                             ],
                           ),
                         ),
 
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 48),
 
-                        AutofillGroup(
+                        // Footer Section
+                        Center(
                           child: Column(
                             children: [
-                              _buildModernTextField(
-                                controller: _emailController,
-                                label: 'Email Address',
-                                hint: 'name@sivani.com',
-                                icon: Icons.alternate_email_rounded,
-                                keyboardType: TextInputType.emailAddress,
-                                autofillHints: [AutofillHints.email],
-                              ),
-                              const SizedBox(height: 24),
-                              _buildModernTextField(
-                                controller: _passwordController,
-                                label: 'Password',
-                                hint: '••••••••',
-                                icon: Icons.lock_outline_rounded,
-                                obscureText: true,
-                                autofillHints: [AutofillHints.password],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        Row(
-                          children: [
-                            Transform.scale(
-                              scale: 0.9,
-                              child: Checkbox(
-                                value: _rememberMe,
-                                activeColor: AppColors.primary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  children: [
+                                    const TextSpan(text: "Need access? "),
+                                    TextSpan(
+                                      text: 'Help Center',
+                                      style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                onChanged: (value) =>
-                                    setState(() => _rememberMe = value ?? false),
                               ),
-                            ),
-                            Text(
-                              'Stay signed in',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        AppButton(
-                          label: 'LOG IN NOW',
-                          isLoading: _isLoading,
-                          onPressed: _handleLogin,
-                          icon: Icons.login_rounded,
-                          borderRadius: 16,
-                          height: 58,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 48),
-
-                  // Footer Section
-                  Center(
-                    child: Column(
-                      children: [
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: GoogleFonts.inter(
-                              color: AppColors.textSecondary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            children: [
-                              const TextSpan(text: "Need access? "),
-                              TextSpan(
-                                text: 'Help Center',
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
+                              const SizedBox(height: 12),
+                              Text(
+                                'Sivani Transport v1.0.0',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                  letterSpacing: 1.0,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Sivani Transport v1.0.0',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            color: Colors.grey.shade400,
-                            letterSpacing: 1.0,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

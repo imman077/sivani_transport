@@ -23,8 +23,8 @@ class VehicleNotifier extends StateNotifier<List<Vehicle>> {
     await _firebaseService.saveVehicle(vehicle);
   }
 
-  Future<void> deleteVehicle(String id) async {
-    await _firebaseService.deleteVehicle(id);
+  Future<void> deleteVehicle(String id, String regNumber) async {
+    await _firebaseService.deleteVehicle(id, regNumber);
   }
 }
 

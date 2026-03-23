@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sivani_transport/core/app_colors.dart';
 import 'package:sivani_transport/providers/auth_provider.dart';
+import 'package:sivani_transport/widgets/app_components.dart';
+import 'package:sivani_transport/providers/notification_provider.dart';
+import 'package:sivani_transport/services/notification_service.dart';
 import 'dart:math' as math;
 
 class MainPage extends ConsumerStatefulWidget {
@@ -28,6 +31,9 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
+    
+    // Start monitoring notifications in background
+    SystemNotificationService.startForegroundTask();
   }
 
   @override
@@ -65,54 +71,95 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
     final user = ref.watch(authProvider);
     final isAdmin = (user?.role ?? '').trim().toLowerCase() == 'admin';
 
+    // Real-time Notification Pusher
+    ref.listen(notificationProvider, (previous, next) {
+      final newNotes = next.value ?? [];
+      final oldNotes = previous?.value ?? [];
+      
+      if (newNotes.length > oldNotes.length) {
+        final latest = newNotes.first;
+        final diff = DateTime.now().difference(latest.timestamp).inSeconds;
+        if (!latest.isRead && diff < 5) {
+          AppToast.show(context, latest.message);
+          SystemNotificationService.showNotification(
+            title: latest.title, 
+            body: latest.message,
+          );
+        }
+      }
+    });
+
+    final String pageTitle = switch (widget.navigationShell.currentIndex) {
+      0 => 'Dashboard',
+      1 => 'Drivers',
+      2 => 'Vehicles',
+      3 => 'Trips',
+      4 => 'Transporters',
+      _ => '',
+    };
+
     return Scaffold(
       extendBody: true,
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: [
-          widget.navigationShell,
-          
-          // Scrim effect with Blur
-          if (_isMenuOpen)
-            GestureDetector(
-              onTap: _toggleMenu,
-              child: AnimatedBuilder(
-                animation: _animationController!,
-                builder: (context, child) => Container(
-                  color: Colors.black.withValues(alpha: 0.6 * _animationController!.value),
-                ),
+      backgroundColor: AppColors.background,
+      endDrawer: const NotificationDrawer(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            BrandedHeader(
+              title: pageTitle,
+              showProfile: widget.navigationShell.currentIndex == 0,
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  widget.navigationShell,
+                  
+                  // Scrim effect with Blur
+                  if (_isMenuOpen)
+                    GestureDetector(
+                      onTap: _toggleMenu,
+                      child: AnimatedBuilder(
+                        animation: _animationController!,
+                        builder: (context, child) => Container(
+                          color: Colors.black.withValues(alpha: 0.6 * _animationController!.value),
+                        ),
+                      ),
+                    ),
+        
+                  // Master Menu Items (Circular Floating Bubbles)
+                  if (isAdmin)
+                    ...[
+                      _buildFloatingBubble(
+                        index: 4,
+                        icon: Icons.business_outlined,
+                        label: 'Transporters',
+                        color: const Color(0xFFF59E0B),
+                        angle: 2.8,
+                        distance: 95,
+                      ),
+                      _buildFloatingBubble(
+                        index: 2,
+                        icon: Icons.local_shipping_outlined,
+                        label: 'Vehicles',
+                        color: const Color(0xFF10B981),
+                        angle: math.pi / 2,
+                        distance: 90,
+                      ),
+                      _buildFloatingBubble(
+                        index: 1,
+                        icon: Icons.badge_outlined,
+                        label: 'Drivers',
+                        color: const Color(0xFF3B82F6),
+                        angle: 0.4,
+                        distance: 80,
+                      ),
+                    ],
+                ],
               ),
             ),
-
-          // Master Menu Items (Circular Floating Bubbles)
-          if (isAdmin)
-            ...[
-              _buildFloatingBubble(
-                index: 4,
-                icon: Icons.business_outlined,
-                label: 'Transporters',
-                color: const Color(0xFFF59E0B),
-                angle: 2.5, // Wider Left
-                distance: 110,
-              ),
-              _buildFloatingBubble(
-                index: 2,
-                icon: Icons.local_shipping_outlined,
-                label: 'Vehicles',
-                color: const Color(0xFF10B981),
-                angle: math.pi / 2, // Straight Top
-                distance: 120, // Higher for center to avoid overlap
-              ),
-              _buildFloatingBubble(
-                index: 1,
-                icon: Icons.badge_outlined,
-                label: 'Drivers',
-                color: const Color(0xFF3B82F6),
-                angle: 0.7, // Wider Right
-                distance: 95,
-              ),
-            ],
-        ],
+          ],
+        ),
       ),
       floatingActionButton: isAdmin
           ? AnimatedBuilder(
@@ -145,7 +192,7 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
           ],
         ),
         child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
+          shape: isAdmin ? const CircularNotchedRectangle() : null,
           notchMargin: 12,
           color: Colors.white,
           height: 80,
@@ -153,7 +200,7 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(0, Icons.grid_view_rounded, 'DASHBOARD'),
-              const SizedBox(width: 60), // Space for FAB
+              if (isAdmin) const SizedBox(width: 60), // Space for FAB
               _buildNavItem(3, Icons.map_outlined, 'TRIPS'),
             ],
           ),
@@ -180,7 +227,7 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
         final double dy = math.sin(angle) * distance * value;
 
         return Positioned(
-          bottom: 35 + dy, // Slightly adjusted base
+          bottom: 10 + dy,
           left: (MediaQuery.of(context).size.width / 2 - 27) + dx, // Centered adjust
           child: Opacity(
             opacity: value,
@@ -236,35 +283,44 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final bool isSelected = widget.navigationShell.currentIndex == index;
-    return InkWell(
-      onTap: () {
-        if (_isMenuOpen) _toggleMenu();
-        _onItemTapped(index);
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isSelected
-                ? AppColors.primary
-                : AppColors.textSecondary.withValues(alpha: 0.4),
-            size: 28,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (_isMenuOpen) _toggleMenu();
+          _onItemTapped(index);
+        },
+        borderRadius: BorderRadius.circular(16),
+        splashColor: AppColors.primary.withValues(alpha: 0.1),
+        highlightColor: AppColors.primary.withValues(alpha: 0.05),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary.withValues(alpha: 0.4),
+                size: 24,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.textSecondary.withValues(alpha: 0.4),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-              color: isSelected
-                  ? AppColors.primary
-                  : AppColors.textSecondary.withValues(alpha: 0.4),
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -7,7 +7,7 @@ import 'package:sivani_transport/providers/auth_provider.dart';
 import 'package:sivani_transport/providers/driver_provider.dart';
 import 'package:sivani_transport/providers/vehicle_provider.dart';
 import 'package:sivani_transport/providers/trip_provider.dart';
-import 'package:sivani_transport/widgets/app_components.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -23,25 +23,20 @@ class DashboardPage extends ConsumerWidget {
   Widget _buildTimeIllustration() {
     final hour = DateTime.now().hour;
     IconData icon;
-    Color color;
     
     if (hour >= 5 && hour < 12) {
-      icon = Icons.light_mode; // Sunrise
-      color = Colors.orangeAccent;
+      icon = Icons.light_mode_rounded; // Sunrise
     } else if (hour >= 12 && hour < 17) {
-      icon = Icons.wb_sunny; // High sun
-      color = Colors.yellowAccent;
+      icon = Icons.wb_sunny_rounded; // High sun
     } else if (hour >= 17 && hour < 21) {
-      icon = Icons.light_mode; // Sunset
-      color = Colors.deepOrangeAccent;
+      icon = Icons.light_mode_rounded; // Sunset
     } else {
-      icon = Icons.nightlight_round; // Moon
-      color = Colors.lightBlueAccent;
+      icon = Icons.nightlight_round_rounded; // Moon
     }
 
     return Container(
-      height: 70,
-      width: 70,
+      height: 56,
+      width: 56,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.1),
         shape: BoxShape.circle,
@@ -49,15 +44,16 @@ class DashboardPage extends ConsumerWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
+          // Halo effect
           Container(
-            height: 50,
-            width: 50,
+            height: 36,
+            width: 36,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.2),
+              color: Colors.white.withValues(alpha: 0.15),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.3),
+                  color: Colors.white.withValues(alpha: 0.2),
                   blurRadius: 15,
                   spreadRadius: 2,
                 ),
@@ -66,8 +62,8 @@ class DashboardPage extends ConsumerWidget {
           ),
           Icon(
             icon,
-            color: color,
-            size: 32,
+            color: Colors.white,
+            size: 24,
           ),
         ],
       ),
@@ -77,140 +73,120 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
-    final bool isAdmin = user?.role == 'Admin';
+    final String role = (user?.role ?? '').trim().toLowerCase();
+    final bool isAdmin = role == 'admin';
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Fixed Top Area (Branded Header)
-            const BrandedHeader(),
-            const SizedBox(height: 8),
-
-            // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
+    // Simplified layout without redundant Scaffold and nested Column/Expanded
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: [
+        // Greeting Section (Refreshed)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF1E88E5), // Blue
+                Color(0xFF3B82F6), // Light Blue
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E88E5).withValues(alpha: 0.3),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Greeting Section (Refreshed)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.primary,
-                            AppColors.primary.withValues(alpha: 0.8),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                    Text(
+                      _getGreeting().toUpperCase(),
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _getGreeting().toUpperCase(),
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  user?.name ?? 'User',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.15,
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        isAdmin
-                                            ? 'Administrator'
-                                            : 'Verified Driver',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '• ${DateTime.now().day} ${_getMonth(DateTime.now().month)}',
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user?.name ?? (isAdmin ? 'Lead Admin' : 'Sivani Driver'),
+                      style: GoogleFonts.outfit(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+                          ),
+                          child: Text(
+                            isAdmin ? 'Administrator' : 'Verified Driver',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          _buildTimeIllustration(),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '• ${DateTime.now().day} ${_getMonth(DateTime.now().month)}',
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-
-                    // Content Area
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (isAdmin) ...[
-                            _buildAdminDashboard(context, ref),
-                          ] else ...[
-                            _buildDriverDashboard(context, ref, user?.id),
-                          ],
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
                   ],
                 ),
               ),
-            ),
-          ],
+              _buildTimeIllustration(),
+            ],
+          ),
         ),
-      ),
+
+        // Content Area
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isAdmin) ...[
+                _buildAdminDashboard(context, ref),
+              ] else ...[
+                _buildDriverDashboard(context, ref, user?.id),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 100), // Extra space for FAB and bottom padding
+      ],
     );
   }
 
@@ -273,7 +249,7 @@ class DashboardPage extends ConsumerWidget {
           crossAxisCount: 3,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 0.95,
+          childAspectRatio: 0.85,
           children: [
             _buildCompactStat(
               'Vehicles',
@@ -321,14 +297,17 @@ class DashboardPage extends ConsumerWidget {
                 'My Trips',
                 const Color(0xFF6366F1),
                 () => context.go('/trips'),
+                margin: EdgeInsets.zero,
               ),
             ),
+            const SizedBox(width: 12),
             Expanded(
               child: _buildActionChip(
                 Icons.account_circle_rounded,
                 'My Profile',
                 const Color(0xFFEC4899),
                 () => context.push('/profile'),
+                margin: EdgeInsets.zero,
               ),
             ),
           ],
@@ -348,11 +327,11 @@ class DashboardPage extends ConsumerWidget {
   Widget _buildSectionHeader(String title) {
     return Text(
       title.toUpperCase(),
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.2,
-        color: AppColors.textPrimary,
+      style: GoogleFonts.outfit(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 2,
+        color: AppColors.textPrimary.withValues(alpha: 0.8),
       ),
     );
   }
@@ -361,42 +340,47 @@ class DashboardPage extends ConsumerWidget {
     IconData icon,
     String label,
     Color color,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    EdgeInsets? margin,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.fromLTRB(12, 12, 20, 12),
+        margin: margin ?? const EdgeInsets.only(right: 14),
+        padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.1)),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                color: AppColors.textPrimary,
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -415,39 +399,50 @@ class DashboardPage extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 18),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    height: 1.2,
-                  ),
+              Text(
+                value,
+                style: GoogleFonts.outfit(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  height: 1.1,
                 ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 2),
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade400,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary.withValues(alpha: 0.7),
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -458,25 +453,31 @@ class DashboardPage extends ConsumerWidget {
 
   Widget _buildRecentTripItem(Trip trip) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
               Icons.route_rounded,
               color: AppColors.primary,
-              size: 18,
+              size: 20,
             ),
           ),
           const SizedBox(width: 16),
@@ -484,27 +485,51 @@ class DashboardPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        trip.from,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(Icons.arrow_forward_rounded, size: 12, color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                    ),
+                    Flexible(
+                      child: Text(
+                        trip.to,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  '${trip.from} ➔ ${trip.to}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                  '${trip.vehicle} • ${trip.plate} • ${trip.loads} Loads',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textSecondary.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  '${trip.vehicle} • ${trip.loads} Loads',
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary.withValues(alpha: 0.5), size: 24),
         ],
       ),
     );
@@ -519,19 +544,32 @@ class DashboardPage extends ConsumerWidget {
     if (scheduled.isEmpty) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 32),
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         decoration: BoxDecoration(
-          color: Colors.grey.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.grey.withValues(alpha: 0.1),
-            style: BorderStyle.none,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-        child: const Center(
-          child: Text(
-            'No upcoming trips scheduled',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.event_busy_rounded, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.15)),
+              const SizedBox(height: 16),
+              Text(
+                'No upcoming trips scheduled',
+                style: GoogleFonts.inter(
+                  color: AppColors.textSecondary.withValues(alpha: 0.5), 
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -560,38 +598,49 @@ class DashboardPage extends ConsumerWidget {
     if (activeTrip.id.isEmpty) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.05),
+                color: const Color(0xFF10B981).withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.check_circle_outline_rounded,
+                Icons.check_circle_rounded,
                 color: Color(0xFF10B981),
-                size: 32,
+                size: 40,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            const SizedBox(height: 20),
+            Text(
               'Resting',
-              style: TextStyle(
+              style: GoogleFonts.outfit(
                 fontWeight: FontWeight.w800,
-                fontSize: 16,
+                fontSize: 20,
                 color: AppColors.textPrimary,
               ),
             ),
-            const Text(
+            const SizedBox(height: 6),
+            Text(
               'No active trips currently',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: GoogleFonts.inter(
+                fontSize: 14, 
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -599,15 +648,22 @@ class DashboardPage extends ConsumerWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primaryDark,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: AppColors.primary.withValues(alpha: 0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -616,35 +672,36 @@ class DashboardPage extends ConsumerWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
                   Icons.local_shipping_rounded,
                   color: Colors.white,
-                  size: 20,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       activeTrip.plate,
-                      style: const TextStyle(
+                      style: GoogleFonts.outfit(
                         fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                        fontSize: 20,
                         color: Colors.white,
+                        letterSpacing: 0.5,
                       ),
                     ),
                     Text(
                       activeTrip.vehicle,
-                      style: TextStyle(
+                      style: GoogleFonts.inter(
                         color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -653,64 +710,65 @@ class DashboardPage extends ConsumerWidget {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text(
-                  'On Road',
-                  style: TextStyle(
+                child: Text(
+                  'ON ROAD',
+                  style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           Row(
             children: [
               const Icon(
                 Icons.location_on_rounded,
                 color: Colors.white,
-                size: 16,
+                size: 18,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   activeTrip.from,
-                  style: const TextStyle(
+                  style: GoogleFonts.inter(
                     fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontSize: 15,
                     color: Colors.white,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
+                padding: EdgeInsets.symmetric(horizontal: 12),
                 child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: Colors.white60,
-                  size: 14,
+                  color: Colors.white54,
+                  size: 16,
                 ),
               ),
               const Icon(
                 Icons.navigation_rounded,
                 color: Colors.white,
-                size: 16,
+                size: 18,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   activeTrip.to,
-                  style: const TextStyle(
+                  style: GoogleFonts.inter(
                     fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontSize: 15,
                     color: Colors.white,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -718,28 +776,28 @@ class DashboardPage extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
+              color: Colors.black.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.info_outline_rounded,
+                  Icons.shield_rounded,
                   color: Colors.white70,
-                  size: 14,
+                  size: 16,
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                const SizedBox(width: 10),
+                Text(
                   'Safe delivery is priority',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],

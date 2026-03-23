@@ -23,10 +23,10 @@ class DriverNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> deleteDriver(String id) async {
+  Future<void> deleteDriver(String id, String name) async {
     state = const AsyncValue.loading();
     try {
-      await _service.deleteDriver(id);
+      await _service.deleteDriver(id, name);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

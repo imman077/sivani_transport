@@ -23,8 +23,8 @@ class TripNotifier extends StateNotifier<List<Trip>> {
     await _firebaseService.saveTrip(trip);
   }
 
-  Future<void> deleteTrip(String id) async {
-    await _firebaseService.deleteTrip(id);
+  Future<void> deleteTrip(String id, String route) async {
+    await _firebaseService.deleteTrip(id, route);
   }
 }
 

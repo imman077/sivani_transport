@@ -5,6 +5,7 @@ import 'package:sivani_transport/core/app_theme.dart';
 import 'package:sivani_transport/core/app_router.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:sivani_transport/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,10 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
   }
+
+  await SystemNotificationService.initialize();
+  await SystemNotificationService.requestPermission();
+  SystemNotificationService.initForegroundTask();
 
   runApp(const ProviderScope(child: SivaniTransportApp()));
 }

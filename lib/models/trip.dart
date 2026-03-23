@@ -83,12 +83,12 @@ class Trip {
     return total;
   }
 
-  double get totalOutwardExpenses => _getLegTotalExpenses('Outward');
-  double get totalReturnExpenses => _getLegTotalExpenses('Return');
+  double get totalOutwardExpenses => _getLegTotalExpenses('A to D');
+  double get totalReturnExpenses => _getLegTotalExpenses('D to A');
   double get totalGeneralExpenses {
     double total = 0.0;
     for (var item in expenseList) {
-      if (item['leg'] == null || item['leg'] == 'General' || (item['leg'] != 'Outward' && item['leg'] != 'Return')) {
+      if (item['leg'] == null || item['leg'] == 'General' || (item['leg'] != 'A to D' && item['leg'] != 'D to A')) {
         final amountStr = item['amount']?.replaceAll('₹', '').replaceAll(',', '') ?? '0.0';
         total += double.tryParse(amountStr) ?? 0.0;
       }

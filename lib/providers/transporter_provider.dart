@@ -22,10 +22,10 @@ class TransporterNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> deleteTransporter(String id) async {
+  Future<void> deleteTransporter(String id, String name) async {
     state = const AsyncValue.loading();
     try {
-      await _service.deleteTransporter(id);
+      await _service.deleteTransporter(id, name);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

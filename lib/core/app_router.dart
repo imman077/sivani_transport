@@ -9,15 +9,21 @@ import 'package:sivani_transport/pages/vehicles_page.dart';
 import 'package:sivani_transport/pages/trips_page.dart';
 import 'package:sivani_transport/pages/add_transporter_page.dart';
 import 'package:sivani_transport/pages/transporters_page.dart';
+import 'package:sivani_transport/pages/add_vehicle_page.dart';
 import 'package:sivani_transport/pages/profile_page.dart';
+import 'package:sivani_transport/pages/add_trip_page.dart';
+import 'package:sivani_transport/pages/not_found_page.dart';
+import 'package:sivani_transport/models/trip.dart';
 import 'package:sivani_transport/models/transporter.dart';
 import 'package:sivani_transport/models/driver.dart';
+import 'package:sivani_transport/models/vehicle.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 final goRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+  errorBuilder: (context, state) => const NotFoundPage(),
   routes: [
     GoRoute(
       path: '/',
@@ -67,6 +73,16 @@ final goRouter = GoRouter(
             GoRoute(
               path: '/vehicles',
               builder: (context, state) => const VehiclesPage(),
+              routes: [
+                GoRoute(
+                  path: 'add',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final vehicle = state.extra as Vehicle?;
+                    return AddVehiclePage(vehicle: vehicle);
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -76,6 +92,22 @@ final goRouter = GoRouter(
             GoRoute(
               path: '/trips',
               builder: (context, state) => const TripsPage(key: ValueKey('trips_v1')),
+              routes: [
+                GoRoute(
+                  path: 'add',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>?;
+                    final trip = extra?['trip'] as Trip?;
+                    final isReadOnly = extra?['isReadOnly'] as bool? ?? false;
+                    return AddTripPage(
+                      isEditing: trip != null,
+                      trip: trip,
+                      isReadOnly: isReadOnly,
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
