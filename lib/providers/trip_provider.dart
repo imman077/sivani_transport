@@ -15,12 +15,12 @@ class TripNotifier extends StateNotifier<List<Trip>> {
     });
   }
 
-  Future<void> addTrip(Trip trip) async {
-    await _firebaseService.saveTrip(trip);
+  Future<void> addTrip(Trip trip, {String performedBy = 'Admin'}) async {
+    await _firebaseService.saveTrip(trip, performedBy: performedBy);
   }
 
-  Future<void> updateTrip(Trip trip) async {
-    await _firebaseService.saveTrip(trip);
+  Future<void> updateTrip(Trip trip, {String performedBy = 'Admin'}) async {
+    await _firebaseService.saveTrip(trip, performedBy: performedBy);
   }
 
   Future<void> deleteTrip(String id, String route) async {

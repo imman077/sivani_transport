@@ -49,6 +49,8 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   late TextEditingController _returnLoadsController; // D to A
   bool _hasReturn = false;
 
+  final List<TextEditingController> _stopControllers = [];
+
   // Expenses Controllers
   late TextEditingController _expenseItemController;
   late TextEditingController _expenseAmountController;
@@ -57,6 +59,9 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     'Diesel', 'Toll', 'Parking', 'Loading', 'Unloading', 'RTO', 
     'Police', 'Weight Bridge', 'Driver Batta', 'Cleaner Batta', 'Meal', 'Repair', 'Others'
   ];
+
+  String? _selectedPaymentCategory;
+  final List<String> _paymentCategories = ['Fuel', 'Extra'];
 
   // Payments & Cash Controllers
   late TextEditingController _initialCashController;
@@ -115,6 +120,16 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
       _returnLoadsController.text = trip.returnLoads.toInt() == 0 ? '' : trip.returnLoads.toString();
       _hasReturn = trip.hasReturn;
 
+      if (trip.stops.isNotEmpty) {
+        for (var stop in trip.stops) {
+          _stopControllers.add(TextEditingController(text: stop)..addListener(() => setState(() {})));
+        }
+      } else {
+        // Fallback for old trips
+        _stopControllers.add(TextEditingController(text: trip.from)..addListener(() => setState(() {})));
+        _stopControllers.add(TextEditingController(text: trip.to)..addListener(() => setState(() {})));
+      }
+
       _expenseList = List.from(
         trip.expenseList.map((e) => Map<String, String>.from(e)),
       );
@@ -136,6 +151,11 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     _loadsController.addListener(() => setState(() {}));
     _returnLoadsController.addListener(() => setState(() {}));
 
+    if (_stopControllers.isEmpty) {
+      _stopControllers.add(TextEditingController()..addListener(() => setState(() {})));
+      _stopControllers.add(TextEditingController()..addListener(() => setState(() {})));
+    }
+
     _calculateMetrics();
   }
 
@@ -156,6 +176,9 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     _initialCashController.dispose();
     _paymentDescController.dispose();
     _paymentAmountController.dispose();
+    for (var controller in _stopControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -238,12 +261,15 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
 
     setState(() => _isSaving = true);
     try {
+      final user = ref.read(authProvider);
+      final userRole = user?.role ?? 'Admin';
       final tripNotifier = ref.read(tripProvider.notifier);
 
       final newTrip = Trip(
         id: widget.isEditing ? widget.trip!.id : '',
-        from: _fromController.text,
-        to: _toController.text,
+        from: _stopControllers.isNotEmpty ? _stopControllers.first.text : _fromController.text,
+        to: _stopControllers.isNotEmpty ? _stopControllers.last.text : _toController.text,
+        stops: _stopControllers.map((c) => c.text).where((s) => s.isNotEmpty).toList(),
         vehicle: _vehicleController.text,
         plate: 'ABC-1234',
         driver: _driverController.text,
@@ -266,9 +292,9 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
       );
 
       if (widget.isEditing) {
-        await tripNotifier.updateTrip(newTrip);
+        await tripNotifier.updateTrip(newTrip, performedBy: userRole);
       } else {
-        await tripNotifier.addTrip(newTrip);
+        await tripNotifier.addTrip(newTrip, performedBy: userRole);
       }
       _showToast(widget.isEditing ? 'Trip Updated' : 'Trip Added');
       if (!mounted) return;
@@ -283,6 +309,8 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   void _handleCompleteTrip() async {
     setState(() => _isCompleting = true);
     try {
+      final user = ref.read(authProvider);
+      final userRole = user?.role ?? 'Admin';
       final tripNotifier = ref.read(tripProvider.notifier);
       final trip = widget.trip!;
       
@@ -295,7 +323,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
         hasReturn: _hasReturn,
       );
 
-      await tripNotifier.updateTrip(completedTrip);
+      await tripNotifier.updateTrip(completedTrip, performedBy: userRole);
       _showToast('Trip Completed Successfully!');
       if (!mounted) return;
       Navigator.pop(context);
@@ -309,6 +337,8 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   void _handleReopenTrip() async {
     setState(() => _isReopening = true);
     try {
+      final user = ref.read(authProvider);
+      final userRole = user?.role ?? 'Admin';
       final tripNotifier = ref.read(tripProvider.notifier);
       final trip = widget.trip!;
       
@@ -317,7 +347,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
         statusColor: Colors.blue,
       );
 
-      await tripNotifier.updateTrip(reopenedTrip);
+      await tripNotifier.updateTrip(reopenedTrip, performedBy: userRole);
       _showToast('Trip Reopened successfully');
       if (!mounted) return;
       Navigator.pop(context);
@@ -331,8 +361,44 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   bool get _isDirty {
     if (widget.isEditing && widget.trip != null) {
       final t = widget.trip!;
-      return _fromController.text != t.from ||
-          _toController.text != t.to ||
+
+      // Compare Stops
+      final currentStops = _stopControllers.map((c) => c.text).toList();
+      final originalStops = t.stops.isNotEmpty ? t.stops : [t.from, t.to];
+      
+      bool stopsChanged = currentStops.length != originalStops.length;
+      if (!stopsChanged) {
+        for (int i = 0; i < currentStops.length; i++) {
+          if (currentStops[i] != originalStops[i]) {
+            stopsChanged = true;
+            break;
+          }
+        }
+      }
+
+      // Check Expenses & Payments Deeply
+      bool listsChanged = _expenseList.length != t.expenseList.length || 
+                          _paymentList.length != t.paymentList.length;
+      if (!listsChanged) {
+        for (int i = 0; i < _expenseList.length; i++) {
+          if (_expenseList[i]['amount'] != t.expenseList[i]['amount'] || 
+              _expenseList[i]['title'] != t.expenseList[i]['title']) {
+            listsChanged = true;
+            break;
+          }
+        }
+        if (!listsChanged) {
+          for (int i = 0; i < _paymentList.length; i++) {
+            if (_paymentList[i]['amount'] != t.paymentList[i]['amount'] || 
+                _paymentList[i]['title'] != t.paymentList[i]['title']) {
+              listsChanged = true;
+              break;
+            }
+          }
+        }
+      }
+
+      return stopsChanged ||
           _vehicleController.text != t.vehicle ||
           _driverController.text != t.driver ||
           _startDate != t.startDate ||
@@ -340,15 +406,14 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
           (double.tryParse(_startKmController.text) ?? 0.0) != t.startKm ||
           (double.tryParse(_endKmController.text) ?? 0.0) != t.endKm ||
           (double.tryParse(_dieselController.text) ?? 0.0) != t.diesel ||
-          (double.tryParse(_loadsController.text) ?? 0.0) != (t.outwardLoads) ||
-          (double.tryParse(_returnLoadsController.text) ?? 0.0) != (t.returnLoads) ||
+          (double.tryParse(_loadsController.text) ?? 0.0) != t.outwardLoads ||
+          (double.tryParse(_returnLoadsController.text) ?? 0.0) != t.returnLoads ||
           _hasReturn != t.hasReturn ||
           (double.tryParse(_initialCashController.text) ?? 0.0) != t.initialCash ||
-          _expenseList.length != t.expenseList.length ||
-          _paymentList.length != t.paymentList.length;
+          listsChanged;
     } else {
-      return _fromController.text.isNotEmpty ||
-          _toController.text.isNotEmpty ||
+      bool hasStopsText = _stopControllers.any((c) => c.text.isNotEmpty);
+      return hasStopsText ||
           _vehicleController.text.isNotEmpty ||
           _driverController.text.isNotEmpty ||
           _startDate != null ||
@@ -363,9 +428,9 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     final isAdmin = (user?.role ?? '').toLowerCase() == 'admin';
     final isDriver = user?.role == 'Driver';
 
-    final bool detailsReadOnly = widget.isReadOnly || isDriver;
+    final bool detailsReadOnly = widget.isReadOnly;
     final bool expensesReadOnly = widget.isReadOnly;
-    final bool paymentsReadOnly = widget.isReadOnly || isDriver;
+    final bool paymentsReadOnly = widget.isReadOnly;
 
     return PopScope(
       canPop: false,
@@ -373,30 +438,19 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
         if (didPop) return;
         _onBackAction();
       },
-      child: _buildCurrentView(
-        isAdmin,
-        isDriver,
-        detailsReadOnly,
-        expensesReadOnly,
-        paymentsReadOnly,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: _buildCurrentStep(detailsReadOnly, expensesReadOnly, paymentsReadOnly, isAdmin, isDriver),
       ),
     );
   }
 
-  Widget _buildCurrentView(
-    bool isAdmin,
-    bool isDriver,
-    bool detailsReadOnly,
-    bool expensesReadOnly,
-    bool paymentsReadOnly,
-  ) {
+  Widget _buildCurrentStep(bool detailsReadOnly, bool expensesReadOnly, bool paymentsReadOnly, bool isAdmin, bool isDriver) {
     switch (_currentStep) {
-      case 'summary':
-        return _buildSummaryView(isAdmin, isDriver);
       case 'details':
-        return _buildDetailsEditView(detailsReadOnly);
+        return _buildRouteDetailsView(detailsReadOnly);
       case 'expenses':
-        return _buildExpensesEditView(expensesReadOnly);
+        return _buildExpenseEditView(expensesReadOnly);
       case 'payment':
         return _buildPaymentEditView(paymentsReadOnly);
       default:
@@ -405,109 +459,286 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   }
 
   Widget _buildSummaryView(bool isAdmin, bool isDriver) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(widget.isReadOnly ? 'Trip Details' : (widget.isEditing ? 'Edit Trip' : 'Add Trip'),
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: _onBackAction,
+    return Column(
+      children: [
+        _buildAppBar('Trip Summary'),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatusSection(),
+                const SizedBox(height: 24),
+                _buildRouteSummary(isAdmin),
+                const SizedBox(height: 20),
+                _buildFinancialOverview(),
+                const SizedBox(height: 20),
+                _buildMetricCards(),
+                const SizedBox(height: 24),
+                _buildActionButtonSection(isAdmin, isDriver),
+              ],
+            ),
+          ),
         ),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1),
-        ),
+        _buildBottomActions(isAdmin),
+      ],
+    );
+  }
+
+  Widget _buildAppBar(String title) {
+    return Container(
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10, bottom: 16, left: 8, right: 16),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
+      child: Row(
+        children: [
+          IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20), onPressed: _onBackAction),
+          const SizedBox(width: 8),
+          Text(title, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B))),
+          const Spacer(),
+          if (widget.isEditing)
+             Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+              child: Text('EDIT MODE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.blue, letterSpacing: 0.5)),
+            ),
+        ],
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            AppStepCard(
-              title: 'Route Details',
-              subtitle: (_fromController.text.isEmpty && _toController.text.isEmpty)
-                  ? 'Select origin and destination'
-                  : '${_fromController.text.isEmpty ? '?' : _fromController.text} ➔ ${_toController.text.isEmpty ? '?' : _toController.text}'  
-                      '${_hasReturn ? ' • Round Trip' : ''}'  
-                      '${_loadsController.text.isNotEmpty ? ' • ${_loadsController.text} T' : ''}',
-              icon: Icons.info_outline,
-              onTap: () => _switchStep('details'),
-              isCompleted: _fromController.text.isNotEmpty && _toController.text.isNotEmpty,
-            ),
-            AppStepCard(
-              title: 'Expenses',
-              subtitle: () {
-                if (_expenseList.isEmpty) return 'No expenses added';
-                double outward = 0;
-                double inward = 0;
-                for (var e in _expenseList) {
-                  final amt = double.tryParse((e['amount'] ?? '0').replaceAll('₹', '')) ?? 0;
-                  if (e['leg'] == 'A to D') outward += amt;
-                  else if (e['leg'] == 'D to A') inward += amt;
-                }
-                final total = '₹${_calculateTotal(_expenseList)}';
-                if (_hasReturn && (outward > 0 || inward > 0)) {
-                  return '${_expenseList.length} items • $total  (A➔D: ₹${outward.toStringAsFixed(0)} • D➔A: ₹${inward.toStringAsFixed(0)})';
-                }
-                return '${_expenseList.length} items • $total';
-              }(),
-              icon: Icons.receipt_long_outlined,
-              onTap: () => _switchStep('expenses'),
-              isCompleted: _expenseList.isNotEmpty,
-            ),
-            AppStepCard(
-              title: 'Payments',
-              subtitle: () {
-                double initial = double.tryParse(_initialCashController.text) ?? 0;
-                double additional = 0;
-                for (var item in _paymentList) {
-                  final amountStr = item['amount']?.replaceAll('₹', '').replaceAll(',', '') ?? '0';
-                  additional += double.tryParse(amountStr) ?? 0;
-                }
-                double expenses = double.tryParse(_calculateTotal(_expenseList)) ?? 0;
-                return 'Total: ₹${(initial + additional).toStringAsFixed(0)} • Bal: ₹${(initial + additional - expenses).toStringAsFixed(0)}';
-              }(),
-              icon: Icons.account_balance_wallet_outlined,
-              onTap: () => _switchStep('payment'),
-              isCompleted: _initialCashController.text.isNotEmpty || _paymentList.isNotEmpty,
-            ),
-          ],
-        ),
+    );
+  }
+
+  Widget _buildStatusSection() {
+    final status = widget.isEditing ? widget.trip!.status : 'Ongoing';
+    final color = widget.isEditing ? widget.trip!.statusColor : Colors.blue;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10))]),
+      child: Row(
+        children: [
+          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle), child: Icon(Icons.local_shipping_outlined, color: color, size: 24)),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current Status', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+              Text(status, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            ],
+          ),
+        ],
       ),
-      bottomNavigationBar: widget.isReadOnly ? null : Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+    );
+  }
+
+  Widget _buildRouteSummary(bool isAdmin) {
+    final from = _stopControllers.first.text;
+    final to = _stopControllers.last.text;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), border: Border.all(color: const Color(0xFFF1F5F9))),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildLocationLabel('ORIGIN', from, Icons.trip_origin_rounded, Colors.blue),
+              Icon(Icons.arrow_forward_rounded, color: Colors.grey[300], size: 20),
+              _buildLocationLabel('DESTINATION', to, Icons.location_on_rounded, Colors.redAccent),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: widget.isReadOnly ? null : () => _switchStep('details'),
+            child: Row(
+              children: [
+                Icon(Icons.map_outlined, size: 18, color: Colors.grey[600]),
+                const SizedBox(width: 8),
+                Text('Manage Route Details & Stops', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800])),
+                const Spacer(),
+                Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationLabel(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: label == 'ORIGIN' ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [
+          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey[400])),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (label == 'ORIGIN') Icon(icon, size: 14, color: color),
+              if (label == 'ORIGIN') const SizedBox(width: 6),
+              Flexible(child: Text(value.isEmpty ? 'Not set' : value, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)), overflow: TextOverflow.ellipsis)),
+              if (label != 'ORIGIN') const SizedBox(width: 6),
+              if (label != 'ORIGIN') Icon(icon, size: 14, color: color),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialOverview() {
+    double expTotal = 0;
+    for (var e in _expenseList) {
+      expTotal += double.tryParse(e['amount']!.replaceAll('₹', '')) ?? 0;
+    }
+    
+    double payTotal = 0;
+    for (var p in _paymentList) {
+      payTotal += double.tryParse(p['amount']!.replaceAll('₹', '')) ?? 0;
+    }
+    
+    double initialCash = double.tryParse(_initialCashController.text) ?? 0;
+    double netTotal = (initialCash + payTotal) - expTotal;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, Color(0xFF2563EB)], 
+          begin: Alignment.topLeft, 
+          end: Alignment.bottomRight
+        ), 
+        borderRadius: BorderRadius.circular(28), 
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.25), 
+            blurRadius: 20, 
+            offset: const Offset(0, 10)
+          )
+        ]
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildMoneyLabel(
+              'AVAILABLE CASH', 
+              '₹${netTotal.toStringAsFixed(0)}', 
+              Colors.white, 
+              Colors.white.withValues(alpha: 0.7)
+            ),
+          ),
+          Container(
+            height: 48, 
+            width: 2, 
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: _buildMoneyLabel(
+                'TOTAL EXPENSES', 
+                '₹${expTotal.toStringAsFixed(0)}', 
+                const Color(0xFFFFD56B), 
+                Colors.white.withValues(alpha: 0.7)
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoneyLabel(String label, String value, Color valueColor, Color labelColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label, 
+          style: GoogleFonts.inter(
+            fontSize: 10, 
+            fontWeight: FontWeight.w800, 
+            color: labelColor, 
+            letterSpacing: 0.5
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value, 
+          style: GoogleFonts.outfit(
+            fontSize: 22, 
+            fontWeight: FontWeight.w800, 
+            color: valueColor
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCards() {
+    return Row(
+      children: [
+        _buildSmallMetric('Total KM', _totalKms, Icons.speed_outlined, Colors.blue),
+        const SizedBox(width: 12),
+        _buildSmallMetric('Mileage', '$_mileage km/l', Icons.local_gas_station_outlined, Colors.green),
+      ],
+    );
+  }
+
+  Widget _buildSmallMetric(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(24), 
+          border: Border.all(color: const Color(0xFFF1F5F9))
+        ),
         child: Row(
           children: [
-            if (widget.isEditing && widget.trip!.status != 'Completed' && !isDriver)
-              Expanded(
-                child: AppButton(
-                  label: 'Complete Trip',
-                  icon: Icons.check_circle_outline_rounded,
-                  backgroundColor: const Color(0xFF10B981),
-                  onPressed: _showCompletionConfirmation,
-                  isLoading: _isCompleting,
-                ),
-              )
-            else if (widget.isEditing && widget.trip!.status == 'Completed' && isAdmin)
-              Expanded(
-                child: AppButton(
-                  label: 'Reopen Trip',
-                  icon: Icons.lock_open_rounded,
-                  backgroundColor: Colors.blue,
-                  onPressed: _showReopenConfirmation,
-                  isLoading: _isReopening,
-                ),
-              ),
-            if (widget.isEditing && ((widget.trip!.status != 'Completed' && !isDriver) || isAdmin))
-              const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(8), 
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1), 
+                borderRadius: BorderRadius.circular(12)
+              ), 
+              child: Icon(icon, color: color, size: 18)
+            ),
+            const SizedBox(width: 8),
             Expanded(
-              flex: (widget.isEditing && ((widget.trip!.status != 'Completed' && !isDriver) || isAdmin)) ? 1 : 2,
-              child: AppButton(
-                label: widget.isEditing ? 'Update Trip' : 'Add Trip',
-                onPressed: _handleSaveTrip,
-                isLoading: _isSaving,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label, 
+                    style: GoogleFonts.inter(
+                      fontSize: 10, 
+                      fontWeight: FontWeight.w600, 
+                      color: Colors.grey[500]
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    value, 
+                    style: GoogleFonts.outfit(
+                      fontSize: 14, 
+                      fontWeight: FontWeight.w700, 
+                      color: const Color(0xFF1E293B)
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ],
@@ -516,462 +747,367 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildDetailsEditView(bool isReadOnly) {
-    final vList = ref.watch(vehicleProvider);
-    final selV = vList.firstWhere(
-      (v) => '${v.regNumber} (${v.model})' == _vehicleController.text,
-      orElse: () => Vehicle(id: '', model: '', regNumber: '', fuelType: '', capacity: 0.0),
+  Widget _buildActionButtonSection(bool isAdmin, bool isDriver) {
+    return Column(
+      children: [
+        _buildMenuButton('Expenses Management', 'Add and manage trip expenses', Icons.receipt_long_outlined, Colors.orange, () => _switchStep('expenses')),
+        const SizedBox(height: 12),
+        _buildMenuButton('Payments & Cash', 'Manage advances and payments', Icons.payments_outlined, Colors.green, () => _switchStep('payment')),
+      ],
     );
-    final capLimit = selV.capacity;
-    final outVal = double.tryParse(_loadsController.text) ?? 0.0;
-    final inVal = double.tryParse(_returnLoadsController.text) ?? 0.0;
-    final outErr = (capLimit > 0 && outVal > capLimit) ? 'Exceeds capacity (${capLimit.toStringAsFixed(1)} T)' : null;
-    final inErr = (capLimit > 0 && inVal > capLimit) ? 'Exceeds capacity (${capLimit.toStringAsFixed(1)} T)' : null;
+  }
 
+  Widget _buildMenuButton(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: widget.isReadOnly ? null : onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFFF1F5F9))),
+        child: Row(
+          children: [
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)), child: Icon(icon, color: color, size: 24)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B))),
+                  Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500])),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey[300]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomActions(bool isAdmin) {
+    if (widget.isReadOnly) return const SizedBox.shrink();
+    
+    final isTripCompleted = widget.isEditing && widget.trip!.status == 'Completed';
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
+      decoration: BoxDecoration(color: Colors.white, border: const Border(top: BorderSide(color: Color(0xFFF1F5F9))), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, -5))]),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              if (isAdmin && widget.isEditing) ...[
+                Expanded(
+                  child: AppButton(
+                    label: isTripCompleted ? 'REOPEN TRIP' : 'COMPLETE TRIP',
+                    backgroundColor: isTripCompleted ? Colors.orange : const Color(0xFF10B981),
+                    onPressed: isTripCompleted ? _handleReopenTrip : _handleCompleteTrip,
+                    height: 54,
+                    isLoading: isTripCompleted ? _isReopening : _isCompleting,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: AppButton(
+                  label: widget.isEditing ? 'SAVE CHANGES' : 'START TRIP',
+                  onPressed: _handleSaveTrip,
+                  height: 54,
+                  isLoading: _isSaving,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteDetailsView(bool isReadOnly) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Route & Details' : 'Add Route & Details',
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
+        title: const Text('Add Route & Details', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: _onBackAction,
-        ),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: _onBackAction),
+        bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppDatePicker(
-                        label: 'Start Date',
-                        hint: 'Select Date',
-                        initialDate: _startDate,
-                        enabled: !isReadOnly,
-                        onDateSelected: (date) {
-                          setState(() {
-                            _startDate = date;
-                            if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-                              _endDate = null;
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppDatePicker(
-                        label: 'End Date',
-                        hint: 'Select Date',
-                        initialDate: _endDate,
-                        enabled: _startDate != null && !isReadOnly,
-                        firstDate: _startDate,
-                        onDateSelected: (date) => setState(() => _endDate = date),
-                      ),
-                    ),
-                  ],
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: AppDatePicker(label: 'Start Date', hint: 'Select Date', initialDate: _startDate, onDateSelected: (d) => setState(() => _startDate = d), enabled: !isReadOnly)),
+                  const SizedBox(width: 16),
+                  Expanded(child: AppDatePicker(label: 'End Date', hint: 'Select Date', initialDate: _endDate, onDateSelected: (d) => setState(() => _endDate = d), enabled: !isReadOnly)),
+                ],
+              ),
+              const SizedBox(height: 32),
+              const Text('Route Stops', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textPrimary)),
+              const SizedBox(height: 16),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _stopControllers.length,
+                separatorBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 23),
+                      Container(height: 16, width: 2, decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(1))),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'From',
-                        hint: 'Coimbatore',
-                        controller: _fromController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                    if (!isReadOnly)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        child: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              final temp = _fromController.text;
-                              _fromController.text = _toController.text;
-                              _toController.text = temp;
-                            });
-                          },
-                          icon: const Icon(Icons.swap_horiz_rounded, color: AppColors.primary),
-                          tooltip: 'Swap Route',
+                itemBuilder: (context, index) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          label: index == 0 ? 'Origin' : (index == _stopControllers.length - 1 ? 'Destination' : 'Stop ${index + 1}'),
+                          hint: 'Enter location',
+                          controller: _stopControllers[index],
+                          readOnly: isReadOnly,
+                          prefixIcon: index == 0 ? Icons.trip_origin_rounded : (index == _stopControllers.length - 1 ? Icons.location_on_rounded : Icons.fiber_manual_record_outlined),
                         ),
-                      )
-                    else
-                      const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'To',
-                        hint: 'Madurai',
-                        controller: _toController,
-                        readOnly: isReadOnly,
                       ),
-                    ),
-                  ],
+                      if (!isReadOnly && _stopControllers.length > 2)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _stopControllers[index].dispose();
+                                _stopControllers.removeAt(index);
+                              });
+                            },
+                            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              if (!isReadOnly) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => setState(() => _stopControllers.add(TextEditingController()..addListener(() => setState(() {})))),
+                  icon: const Icon(Icons.add_location_alt_outlined, size: 20),
+                  label: const Text('Add Another Stop'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary, textStyle: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
-                const SizedBox(height: 16),
-                ref.watch(vehicleProvider).isNotEmpty
+              ],
+              const SizedBox(height: 16),
+              ref.watch(vehicleProvider).isNotEmpty
+                  ? AppDropdown<String>(
+                      label: 'Vehicle',
+                      hint: 'Select Vehicle',
+                      prefixIcon: Icons.local_shipping_outlined,
+                      value: _vehicleController.text.isEmpty ? null : _vehicleController.text,
+                      readOnly: isReadOnly,
+                      items: ref.watch(vehicleProvider).map((v) {
+                        final value = '${v.regNumber} (${v.model})';
+                        return DropdownMenuItem(value: value, child: Text(value));
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          _vehicleController.text = val;
+                          setState(() {});
+                        }
+                      },
+                    )
+                  : AppTextField(label: 'Vehicle', hint: 'Truck Number', controller: _vehicleController, prefixIcon: Icons.local_shipping_outlined, readOnly: isReadOnly),
+              const SizedBox(height: 24),
+              () {
+                final drivers = ref.watch(driversStreamProvider).value ?? [];
+                return drivers.isNotEmpty
                     ? AppDropdown<String>(
-                        label: 'Vehicle',
-                        hint: 'Select Vehicle',
-                        prefixIcon: Icons.local_shipping_outlined,
-                        value: _vehicleController.text.isEmpty ? null : _vehicleController.text,
-                        readOnly: isReadOnly,
-                        items: ref.watch(vehicleProvider).map((v) {
-                          final value = '${v.regNumber} (${v.model})';
-                          return DropdownMenuItem(value: value, child: Text(value));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _vehicleController.text = val);
-                        },
-                      )
-                    : AppTextField(
-                        label: 'Vehicle',
-                        hint: 'TN-32 BB-1139',
-                        prefixIcon: Icons.local_shipping_outlined,
-                        controller: _vehicleController,
-                        readOnly: isReadOnly,
-                      ),
-                const SizedBox(height: 16),
-                ref.watch(driversStreamProvider).when(
-                      data: (drivers) => AppDropdown<String>(
                         label: 'Driver Name',
                         hint: 'Select Driver',
                         prefixIcon: Icons.badge_outlined,
                         value: _selectedDriverId,
                         readOnly: isReadOnly,
-                        items: drivers.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
+                        items: drivers.map((d) {
+                          return DropdownMenuItem(value: d.id, child: Text(d.name));
+                        }).toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            final driver = drivers.firstWhere((d) => d.id == val);
-                            setState(() {
-                              _selectedDriverId = val;
-                              _driverController.text = driver.name;
-                            });
+                            final d = drivers.firstWhere((d) => d.id == val);
+                            _selectedDriverId = val;
+                            _driverController.text = d.name;
+                            setState(() {});
                           }
                         },
-                      ),
-                      loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => AppTextField(
-                        label: 'Driver Name',
-                        hint: 'P. Keerthivasan',
-                        prefixIcon: Icons.badge_outlined,
-                        controller: _driverController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                ref.watch(transportersStreamProvider).when(
-                      data: (transporters) => AppDropdown<String>(
+                      )
+                    : AppTextField(label: 'Driver Name', hint: 'John Doe', controller: _driverController, prefixIcon: Icons.badge_outlined, readOnly: isReadOnly);
+              }(),
+              const SizedBox(height: 24),
+              () {
+                final transporters = ref.watch(transportersStreamProvider).value ?? [];
+                return transporters.isNotEmpty
+                    ? AppDropdown<String>(
                         label: 'Transporter Name',
                         hint: 'Select Transporter',
                         prefixIcon: Icons.business_outlined,
                         value: _selectedTransporterId,
                         readOnly: isReadOnly,
-                        items: transporters.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
+                        items: transporters.map((t) {
+                          return DropdownMenuItem(value: t.id, child: Text(t.name));
+                        }).toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            final transporter = transporters.firstWhere((t) => t.id == val);
-                            setState(() {
-                              _selectedTransporterId = val;
-                              _transporterController.text = transporter.name;
-                            });
+                            final t = transporters.firstWhere((t) => t.id == val);
+                            _selectedTransporterId = val;
+                            _transporterController.text = t.name;
+                            setState(() {});
                           }
                         },
-                      ),
-                      loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => AppTextField(
-                        label: 'Transporter Name',
-                        hint: 'Sivani Transport',
-                        prefixIcon: Icons.business_outlined,
-                        controller: _transporterController,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Starting KMs',
-                        hint: '0',
-                        controller: _startKmController,
-                        prefixIcon: Icons.speed,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Closing KMs',
-                        hint: '0',
-                        controller: _endKmController,
-                        prefixIcon: Icons.speed,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Diesel (Ltrs)',
-                        hint: '0.0',
-                        controller: _dieselController,
-                        prefixIcon: Icons.gas_meter_outlined,
-                        keyboardType: TextInputType.number,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: _hasReturn ? 'A to D Loads' : 'Number of Loads',
-                        hint: '0',
-                        controller: _loadsController,
-                        prefixIcon: Icons.unarchive_outlined,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) => setState(() {}),
-                        errorText: outErr,
-                        readOnly: isReadOnly,
-                      ),
-                    ),
-                  ],
-                ),
-                if (_hasReturn) ...[
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'D to A Loads',
-                    hint: '0',
-                    controller: _returnLoadsController,
-                    prefixIcon: Icons.unarchive_outlined,
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) => setState(() {}),
-                    errorText: inErr,
-                    readOnly: isReadOnly,
-                  ),
+                      )
+                    : AppTextField(label: 'Transporter Name', hint: 'Company ABC', controller: _transporterController, prefixIcon: Icons.business_outlined, readOnly: isReadOnly);
+              }(),
+              const SizedBox(height: 32),
+              const Text('Journey Metrics', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textPrimary)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(child: AppTextField(label: 'Opening KM', hint: '0', prefixIcon: Icons.speed_outlined, controller: _startKmController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
+                  const SizedBox(width: 16),
+                  Expanded(child: AppTextField(label: 'Closing KM', hint: '0', prefixIcon: Icons.flag_outlined, controller: _endKmController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
                 ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
+              ),
+              const SizedBox(height: 24),
+              AppTextField(label: 'Total Diesel (Litres)', hint: '0.00', prefixIcon: Icons.local_gas_station_outlined, controller: _dieselController, keyboardType: TextInputType.number, readOnly: isReadOnly),
+              const SizedBox(height: 24),
+              Row(
+                  children:[
+                    Expanded(child: AppTextField(label: 'Outward Load (T)', hint: '0.00', controller: _loadsController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
+                    const SizedBox(width: 16),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          'Include Return Trip (Back to Origin)?',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _hasReturn ? AppColors.primary : AppColors.textPrimary,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Has Return?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textSecondary)),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(_hasReturn ? 'YES' : 'NO', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            value: _hasReturn,
+                            onChanged: isReadOnly ? null : (v) => setState(() => _hasReturn = v),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                    Switch.adaptive(
-                      value: _hasReturn,
-                      activeTrackColor: AppColors.primary,
-                      onChanged: isReadOnly ? null : (val) => setState(() => _hasReturn = val),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Total KMs',
-                        hint: '0',
-                        readOnly: true,
-                        controller: TextEditingController(text: _totalKms),
-                        prefixIcon: Icons.map_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppTextField(
-                        label: 'Mileage (KM/L)',
-                        hint: '0.0',
-                        readOnly: true,
-                        controller: TextEditingController(text: _mileage),
-                        prefixIcon: Icons.auto_graph_outlined,
-                      ),
-                    ),
-                  ],
-                ),
+                  ]
+              ),
+              if (_hasReturn) ...[
+                const SizedBox(height: 24),
+                AppTextField(label: 'Return Load (T)', hint: '0.00', controller: _returnLoadsController, keyboardType: TextInputType.number, readOnly: isReadOnly),
               ],
-            ),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
+      ),
     );
   }
 
-  Widget _buildExpensesEditView(bool isReadOnly) {
+  Widget _buildExpenseEditView(bool isReadOnly) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Expenses' : 'Add Expenses',
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: _onBackAction,
-        ),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Trip Expenses', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)), backgroundColor: Colors.white, surfaceTintColor: Colors.white, leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: _onBackAction), bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1))),
       body: SafeArea(
         child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_hasReturn && !isReadOnly) ...[
-                  const Text('Select Trip Leg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildLegTab('A to D', _selectedExpenseLeg == 'A to D'),
-                      const SizedBox(width: 8),
-                      _buildLegTab('D to A', _selectedExpenseLeg == 'D to A'),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isReadOnly) ...[
+                _buildSectionLabel('Add Expense'),
+                const SizedBox(height: 16),
                 _buildExpenseForm(isReadOnly),
                 const SizedBox(height: 32),
-                _buildSectionLabel('Direct Expenses List'),
-                const SizedBox(height: 16),
-                if (_expenseList.isEmpty)
-                  const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Text('No expenses added yet', style: TextStyle(color: Colors.grey))))
-                else
-                  ...List.generate(_expenseList.length, (index) {
-                    final item = _expenseList[index];
-                    return AppListItem(
-                      title: item['title']!,
-                      amount: item['amount']!,
-                      subtitle: item['leg'],
-                      color: item['leg'] == 'A to D' ? Colors.blue : Colors.orange,
-                      onEdit: isReadOnly ? null : () {
-                        setState(() {
-                          _editingExpenseIndex = index;
-                          _selectedExpenseCategory = item['title']!.split(' ')[0]; // Basic recovery of category
-                          _expenseAmountController.text = item['amount']!.replaceAll('₹', '');
-                          _selectedExpenseLeg = item['leg'] ?? 'A to D';
-                        });
-                      },
-                      onDelete: isReadOnly ? null : () {
-                        AppDeleteConfirmation.show(
-                          context,
-                          title: 'Expense',
-                          itemName: item['title']!,
-                          onConfirm: () => setState(() => _expenseList.removeAt(index)),
-                        );
-                      },
-                    );
-                  }),
-                const SizedBox(height: 40),
               ],
-            ),
+              _buildSectionLabel('Expense List'),
+              const SizedBox(height: 16),
+              if (_expenseList.isEmpty)
+                const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('No expenses recorded yet', style: TextStyle(color: Colors.grey))))
+              else
+                ...List.generate(_expenseList.length, (index) {
+                  final item = _expenseList[index];
+                  return AppListItem(
+                    title: item['title']!,
+                    amount: item['amount']!,
+                    subtitle: 'Direction: ${item['leg']}',
+                    onEdit: isReadOnly ? null : () {
+                      setState(() {
+                         _editingExpenseIndex = index;
+                         _expenseAmountController.text = item['amount']!.replaceAll('₹', '');
+                         _selectedExpenseLeg = item['leg']!;
+                      });
+                    },
+                    onDelete: isReadOnly ? null : () {
+                      AppDeleteConfirmation.show(context, title: 'Expense', itemName: item['title']!, onConfirm: () => setState(() => _expenseList.removeAt(index)));
+                    },
+                  );
+                }),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
+      ),
     );
   }
 
   Widget _buildExpenseForm(bool isReadOnly) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white, 
-        borderRadius: BorderRadius.circular(24), 
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.blue.shade50)),
       child: Column(
         children: [
-          AppDropdown<String>(
-            label: 'Expense Category',
-            hint: 'Select Category',
-            prefixIcon: Icons.category_outlined,
-            value: _selectedExpenseCategory,
-            readOnly: isReadOnly,
-            items: _expenseCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-            onChanged: (val) => setState(() => _selectedExpenseCategory = val),
+          Row(
+            children: [
+              Flexible(
+                flex: 11,
+                child: AppDropdown<String>(
+                  label: 'Category', hint: 'Select', items: _expenseCategories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 12)))).toList(),
+                  value: _selectedExpenseCategory, onChanged: (val) => setState(() => _selectedExpenseCategory = val), readOnly: isReadOnly,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                flex: 10,
+                child: AppDropdown<String>(
+                  label: 'Direction', hint: 'Select', items: ['A to D', 'D to A'].map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 12)))).toList(),
+                  value: _selectedExpenseLeg, onChanged: (val) => setState(() => _selectedExpenseLeg = val!), readOnly: isReadOnly,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          AppTextField(
-            label: 'Amount (₹)', 
-            hint: '0', 
-            controller: _expenseAmountController, 
-            keyboardType: TextInputType.number, 
-            readOnly: isReadOnly, 
-            prefixIcon: Icons.currency_rupee,
-          ),
-          const SizedBox(height: 24),
-          if (_editingExpenseIndex != null) 
-            _buildCancelButton(() => setState(() { 
-              _editingExpenseIndex = null; 
-              _expenseAmountController.clear();
-              _selectedExpenseCategory = null;
-            })),
+          AppTextField(label: 'Amount (₹)', hint: '0.00', controller: _expenseAmountController, keyboardType: TextInputType.number, readOnly: isReadOnly),
+          const SizedBox(height: 20),
           AppButton(
-            label: _editingExpenseIndex == null ? 'Add to List' : 'Update Item',
+            label: _editingExpenseIndex == null ? 'ADD EXPENSE' : 'SAVE CHANGES',
             onPressed: isReadOnly ? null : () {
               if (_selectedExpenseCategory == null || _expenseAmountController.text.isEmpty) {
-                AppToast.show(context, 'Please select a category and enter amount!', isError: true);
+                AppToast.show(context, 'Please fill category and amount', isError: true);
                 return;
               }
-
-              final double initial = double.tryParse(_initialCashController.text) ?? 0;
-              double additional = 0;
-              for (var p in _paymentList) {
-                additional += double.tryParse(p['amount']!.replaceAll('₹', '')) ?? 0;
-              }
-
-              if (initial + additional <= 0) {
-                AppToast.show(context, 'Please add an Advance or Payment first!', isError: true);
-                return;
-              }
-
               setState(() {
                 if (_editingExpenseIndex == null) {
-                  // Calculate count for auto-increment
                   int count = 0;
                   for (var e in _expenseList) {
                     if (e['leg'] == _selectedExpenseLeg && e['title']!.startsWith(_selectedExpenseCategory!)) {
                       count++;
                     }
                   }
-                  
-                  final title = '${_selectedExpenseCategory!} ${count + 1}';
-                  
-                  _expenseList.add({
-                    'title': title,
-                    'amount': '₹${_expenseAmountController.text}',
-                    'leg': _selectedExpenseLeg
-                  });
+                  _expenseList.add({'title': '${_selectedExpenseCategory!} ${count+1}', 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg});
                 } else {
-                  _expenseList[_editingExpenseIndex!] = {
-                    'title': _expenseList[_editingExpenseIndex!]['title']!, // Keep original title on edit
-                    'amount': '₹${_expenseAmountController.text}',
-                    'leg': _selectedExpenseLeg
-                  };
+                  _expenseList[_editingExpenseIndex!] = {'title': _expenseList[_editingExpenseIndex!]['title']!, 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg};
                   _editingExpenseIndex = null;
                 }
                 _expenseAmountController.clear();
@@ -987,31 +1123,14 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   Widget _buildPaymentEditView(bool isReadOnly) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Payment & Cash' : 'Add Payment & Cash',
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: _onBackAction,
-        ),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1),
-        ),
-      ),
+      appBar: AppBar(title: Text(widget.isEditing ? 'Edit Payment & Cash' : 'Add Payment & Cash', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)), backgroundColor: Colors.white, surfaceTintColor: Colors.white, leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: _onBackAction), bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1))),
       body: SafeArea(
         child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppTextField(
-                  label: 'Advance Received', hint: '0',
-                  prefixIcon: Icons.payments_outlined, controller: _initialCashController,
-                  keyboardType: TextInputType.number, readOnly: isReadOnly,
-                ),
+                AppTextField(label: 'Advance Received', hint: '0', prefixIcon: Icons.payments_outlined, controller: _initialCashController, keyboardType: TextInputType.number, readOnly: isReadOnly),
                 const SizedBox(height: 32),
                 if (!isReadOnly) ...[
                   _buildSectionLabel('Additional Payments'),
@@ -1030,23 +1149,26 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                       onEdit: isReadOnly ? null : () {
                         setState(() {
                           _editingPaymentIndex = index;
-                          _paymentDescController.text = item['title']!;
+                          final title = item['title']!;
+                          _paymentDescController.text = title;
                           _paymentAmountController.text = item['amount']!.replaceAll('₹', '');
+                          if (title.startsWith('Fuel')) {
+                            _selectedPaymentCategory = 'Fuel';
+                          } else if (title.startsWith('Extra')) {
+                            _selectedPaymentCategory = 'Extra';
+                          } else {
+                            _selectedPaymentCategory = null;
+                          }
                         });
                       },
                       onDelete: isReadOnly ? null : () {
-                        AppDeleteConfirmation.show(
-                          context,
-                          title: 'Payment',
-                          itemName: item['title']!,
-                          onConfirm: () => setState(() => _paymentList.removeAt(index)),
-                        );
+                        AppDeleteConfirmation.show(context, title: 'Payment', itemName: item['title']!, onConfirm: () => setState(() => _paymentList.removeAt(index)));
                       },
                     );
                   }),
                 const SizedBox(height: 24),
                 _buildFinalSummary(),
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -1060,7 +1182,26 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.blue.shade50)),
       child: Column(
         children: [
-           AppTextField(label: 'Description', hint: 'Fuel Advance', controller: _paymentDescController, readOnly: isReadOnly),
+           AppDropdown<String>(
+             label: 'Payment Category', hint: 'Select category', value: _selectedPaymentCategory, readOnly: isReadOnly,
+             items: _paymentCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+             onChanged: (val) {
+               if (val != null) {
+                 setState(() {
+                   _selectedPaymentCategory = val;
+                   int count = 0;
+                   for (var p in _paymentList) {
+                     if (p['title']!.startsWith(val)) {
+                       count++;
+                     }
+                   }
+                   _paymentDescController.text = '$val ${count + 1}';
+                 });
+               }
+             },
+           ),
+           const SizedBox(height: 16),
+           AppTextField(label: 'Description', hint: 'Auto-generated name', controller: _paymentDescController, readOnly: true),
            const SizedBox(height: 16),
            AppTextField(label: 'Amount', hint: '0.00', controller: _paymentAmountController, keyboardType: TextInputType.number, readOnly: isReadOnly),
            const SizedBox(height: 20),
@@ -1075,8 +1216,8 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                      _paymentList[_editingPaymentIndex!] = {'title': _paymentDescController.text, 'amount': '₹${_paymentAmountController.text}'};
                      _editingPaymentIndex = null;
                    }
-                   _paymentDescController.clear(); _paymentAmountController.clear();
-                 });
+                    _paymentDescController.clear(); _paymentAmountController.clear(); _selectedPaymentCategory = null;
+                  });
                }
              },
            )
@@ -1091,116 +1232,21 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     for (var p in _paymentList) {
       add += double.tryParse(p['amount']!.replaceAll('₹', '')) ?? 0;
     }
-    double exp = double.tryParse(_calculateTotal(_expenseList)) ?? 0;
-    final double balance = initial + add - exp;
-
+    
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: const Color(0xFFF1F5F9).withValues(alpha: 0.5), borderRadius: BorderRadius.circular(24)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          AppSummaryRow(
-            label: 'Total Payments',
-            value: '₹${(initial + add).toStringAsFixed(0)}',
-            valueColor: const Color(0xFF10B981),
-          ),
-          const SizedBox(height: 12),
-          AppSummaryRow(
-            label: 'Total Expenses',
-            value: '₹${exp.toStringAsFixed(0)}',
-            valueColor: const Color(0xFFEF4444),
-          ),
-          const Divider(height: 32),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.05),
-                  AppColors.primary.withValues(alpha: 0.08),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Net Balance',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  '₹${balance.toStringAsFixed(0)}',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Text('Total Cash Available', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.grey[600])),
+          Text('₹${(initial + add).toStringAsFixed(0)}', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF1E293B))),
         ],
       ),
     );
   }
 
-  Widget _buildSectionLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.2)));
-  Widget _buildCancelButton(VoidCallback onTap) => TextButton.icon(onPressed: onTap, icon: const Icon(Icons.close, color: Colors.red), label: const Text('Cancel Edit', style: TextStyle(color: Colors.red)));
-  String _calculateTotal(List<Map<String, String>> l) {
-    double t = 0;
-    for (var i in l) {
-      t += double.tryParse(i['amount']!.replaceAll('₹', '')) ?? 0;
-    }
-    return t.toStringAsFixed(0);
-  }
-
-  void _showReopenConfirmation() {
-    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Reopen?'), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('No')), TextButton(onPressed: () { Navigator.pop(context); _handleReopenTrip(); }, child: const Text('Yes'))]));
-  }
-
-  void _showCompletionConfirmation() {
-    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Complete?'), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('No')), TextButton(onPressed: () { Navigator.pop(context); _handleCompleteTrip(); }, child: const Text('Yes'))]));
-  }
-
-  Widget _buildLegTab(String label, bool isSelected) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedExpenseLeg = label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? AppColors.primary : Colors.grey.shade200),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? Colors.white : AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
+  Widget _buildSectionLabel(String label) {
+    return Text(label, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: 0.5));
   }
 }

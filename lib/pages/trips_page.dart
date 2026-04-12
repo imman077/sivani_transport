@@ -296,19 +296,30 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      _buildShortLocationBox(trip.from, 'Origin'),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white60,
-                          size: 20,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              trip.route,
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Planned Route Path',
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      _buildShortLocationBox(
-                        trip.to,
-                        'Destination',
-                        isEnd: true,
                       ),
                     ],
                   ),
@@ -420,39 +431,6 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     );
   }
 
-  Widget _buildShortLocationBox(
-    String city,
-    String label, {
-    bool isEnd = false,
-  }) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: isEnd
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          Text(
-            city,
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showDeleteConfirmation(String tripId, String route) {
     showDialog(

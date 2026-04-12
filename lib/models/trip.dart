@@ -20,6 +20,7 @@ class Trip {
   final bool? _hasReturn;
   final List<Map<String, String>> expenseList;
   final List<Map<String, String>> paymentList;
+  final List<String> stops;
   final num initialCash;
   final String status;
   final Color statusColor;
@@ -28,6 +29,7 @@ class Trip {
     required this.id,
     required this.from,
     required this.to,
+    this.stops = const [],
     required this.vehicle,
     required this.plate,
     required this.driver,
@@ -59,7 +61,7 @@ class Trip {
   // Keep 'loads' getter for backward compatibility with existing UI if needed
   double get loads => outwardLoads;
 
-  String get route => '$from • $to';
+  String get route => stops.isNotEmpty ? stops.join(' • ') : '$from • $to';
   double get totalKms => endKm.toDouble() - startKm.toDouble();
   double get mileage => (diesel > 0.0 && totalKms > 0.0) ? (totalKms / diesel.toDouble()) : 0.0;
 
@@ -111,6 +113,7 @@ class Trip {
     String? id,
     String? from,
     String? to,
+    List<String>? stops,
     String? vehicle,
     String? plate,
     String? driver,
@@ -135,6 +138,7 @@ class Trip {
       id: id ?? this.id,
       from: from ?? this.from,
       to: to ?? this.to,
+      stops: stops ?? this.stops,
       vehicle: vehicle ?? this.vehicle,
       plate: plate ?? this.plate,
       driver: driver ?? this.driver,
@@ -162,6 +166,7 @@ class Trip {
       'id': id,
       'from': from,
       'to': to,
+      'stops': stops,
       'vehicle': vehicle,
       'plate': plate,
       'driver': driver,
@@ -196,6 +201,7 @@ class Trip {
       id: map['id'] ?? '',
       from: map['from'] ?? '',
       to: map['to'] ?? '',
+      stops: List<String>.from(map['stops'] ?? []),
       vehicle: map['vehicle'] ?? '',
       plate: map['plate'] ?? '',
       driver: map['driver'] ?? '',

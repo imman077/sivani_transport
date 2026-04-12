@@ -327,7 +327,7 @@ class FirebaseService {
         .map((snapshot) => snapshot.docs.map((doc) => Trip.fromMap(doc.data())).toList());
   }
 
-  Future<void> saveTrip(Trip trip) async {
+  Future<void> saveTrip(Trip trip, {String performedBy = 'Admin'}) async {
     try {
       String tripId = trip.id.isEmpty 
           ? 'TRP-${DateTime.now().millisecondsSinceEpoch}' 
@@ -344,7 +344,7 @@ class FirebaseService {
       // Admin notification
       await createNotification(AppNotification(
         id: '', title: isUpdate ? 'Trip Updated' : 'New Trip Added',
-        message: 'Trip from ${newTrip.from} to ${newTrip.to} has been ${isUpdate ? 'updated' : 'added'}.',
+        message: 'Trip (${newTrip.route}) has been ${isUpdate ? 'updated' : 'added'} by $performedBy.',
         timestamp: DateTime.now(), type: isUpdate ? 'trip_updated' : 'trip_added',
         role: 'Admin',
       ));
@@ -354,8 +354,8 @@ class FirebaseService {
         await createNotification(AppNotification(
           id: '', title: isUpdate ? 'Assigned Trip Updated' : 'New Trip Assigned',
           message: isUpdate 
-            ? 'Your trip to ${newTrip.to} has been updated by Admin.' 
-            : 'You have been assigned a new trip to ${newTrip.to}.',
+            ? 'Your trip (${newTrip.route}) has been updated by $performedBy.' 
+            : 'You have been assigned a new trip: ${newTrip.route}.',
           timestamp: DateTime.now(), type: isUpdate ? 'assigned_trip_updated' : 'trip_assigned',
           role: 'Driver',
           targetUserId: newTrip.driverId,

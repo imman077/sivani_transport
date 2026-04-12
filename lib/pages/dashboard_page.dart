@@ -487,24 +487,9 @@ class DashboardPage extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Flexible(
+                    Expanded(
                       child: Text(
-                        trip.from,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: AppColors.textPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Icon(Icons.arrow_forward_rounded, size: 12, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-                    ),
-                    Flexible(
-                      child: Text(
-                        trip.to,
+                        trip.route,
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
@@ -517,7 +502,7 @@ class DashboardPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${trip.vehicle} • ${trip.plate} • ${trip.loads} Loads',
+                  '${trip.vehicle} • ${trip.plate} • ${trip.loads} Loads • ${trip.status}',
                   style: GoogleFonts.inter(
                     color: AppColors.textSecondary.withValues(alpha: 0.8),
                     fontSize: 12,

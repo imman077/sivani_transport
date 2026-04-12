@@ -20,6 +20,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool isAdministrator = true;
   bool _isLoading = false;
   bool _rememberMe = true;
+  bool _obscurePassword = true;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -309,8 +310,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       label: 'Password',
                                       hint: '••••••••',
                                       icon: Icons.lock_outline_rounded,
-                                      obscureText: true,
+                                      obscureText: _obscurePassword,
                                       autofillHints: [AutofillHints.password],
+                                      toggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
                                     ),
                                   ],
                                 ),
@@ -454,6 +456,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     bool obscureText = false,
     TextInputType? keyboardType,
     List<String>? autofillHints,
+    VoidCallback? toggleObscure,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -486,6 +489,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               fontWeight: FontWeight.w400,
             ),
             prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
+            suffixIcon: toggleObscure != null
+                ? IconButton(
+                    onPressed: toggleObscure,
+                    icon: Icon(
+                      obscureText
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
+                  )
+                : null,
             filled: true,
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
