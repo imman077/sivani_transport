@@ -92,8 +92,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     try {
       final user = await FirebaseService().login(
-        _emailController.text,
-        _passwordController.text,
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
       if (user != null) {
@@ -503,7 +503,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 : null,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.grey.shade200, width: 2),
             ),

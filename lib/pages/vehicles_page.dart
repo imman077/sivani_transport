@@ -6,6 +6,7 @@ import 'package:sivani_transport/models/vehicle.dart';
 import 'package:sivani_transport/providers/vehicle_provider.dart';
 import 'package:sivani_transport/providers/search_provider.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
+import 'package:sivani_transport/pages/history_page.dart';
 
 class VehiclesPage extends ConsumerStatefulWidget {
   const VehiclesPage({super.key});
@@ -251,6 +252,23 @@ class _VehiclesPageState extends ConsumerState<VehiclesPage> {
                         const Color(0xFFFFF1F2),
                         const Color(0xFFE11D48),
                         () => _showDeleteConfirmation(vehicle),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildActionButton(
+                        Icons.history_rounded,
+                        const Color(0xFFF0FDF4),
+                        const Color(0xFF16A34A),
+                        () {
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => HistoryPage(
+                                entityId: vehicle.id,
+                                entityName: vehicle.regNumber,
+                                type: HistoryType.vehicle,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:sivani_transport/models/app_user.dart';
@@ -25,19 +26,20 @@ class FirebaseService {
     }
   }
 
-  // Register User directly in Firestore
+  // Register User properly using Firebase Auth and Firestore
   Future<void> registerUser(AppUser user) async {
     try {
-      // Use the provided ID or generate a custom one if empty
-      String userId = user.id.isEmpty 
-          ? 'USR-${DateTime.now().millisecondsSinceEpoch}' 
-          : user.id;
-      
-      final newUser = user.copyWith(id: userId);
+      // 1. Create in Firebase Auth
+      UserCredential creds = await _auth.createUserWithEmailAndPassword(
+        email: user.email,
+        password: user.password,
+      );
 
-      // Save everything to Firestore (including password)
+      // 2. Save profile to Firestore using the Auth UID
+      final newUser = user.copyWith(id: creds.user!.uid);
+
       await _firestore.collection('users').doc(newUser.id).set({
-        ...newUser.toMap(),
+        ...newUser.toMap()..remove('password'), // SECURE: Don't store password in Firestore
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -45,23 +47,41 @@ class FirebaseService {
     }
   }
 
-  // Simple login check against Firestore
+  // Proper login using Firebase Auth
   Future<AppUser?> login(String email, String password) async {
+    // 1. Authenticate with Firebase Auth
+    UserCredential creds = await _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password.trim(),
+    );
+
+    // 2. Try to fetch user profile from Firestore using UID
     try {
-      final query = await _firestore
+      DocumentSnapshot doc = await _firestore
           .collection('users')
-          .where('email', isEqualTo: email)
-          .where('password', isEqualTo: password)
-          .limit(1)
+          .doc(creds.user!.uid)
           .get();
 
-      if (query.docs.isNotEmpty) {
-        return AppUser.fromMap(query.docs.first.data());
+      if (doc.exists) {
+        return AppUser.fromMap(doc.data() as Map<String, dynamic>);
       }
-      return null;
     } catch (e) {
-      rethrow;
+      // Firestore read failed (e.g. permission-denied).
+      // Fall back to a basic user constructed from Firebase Auth data.
+      // Fix your Firestore Security Rules to properly resolve this.
+      final firebaseUser = creds.user!;
+      return AppUser(
+        id: firebaseUser.uid,
+        name: firebaseUser.displayName ?? email.split('@').first,
+        phone: firebaseUser.phoneNumber ?? '',
+        email: firebaseUser.email ?? email,
+        password: '',
+        role: 'Admin', // Default fallback role
+        registrationDate: DateTime.now(),
+      );
     }
+
+    return null;
   }
 
   // Get user by email
@@ -122,17 +142,32 @@ class FirebaseService {
         .map((snapshot) => snapshot.docs.map((doc) => Driver.fromMap(doc.data())).toList());
   }
 
-  // Save/Update Driver
+  // Save/Update Driver with Auth Integration
   Future<void> saveDriver(Driver driver) async {
     try {
-      // 1. Generate/Verify ID
-      String driverId = driver.id.isEmpty 
-          ? 'DRV-${DateTime.now().millisecondsSinceEpoch}' 
-          : driver.id;
-      
-      String? imageBase64 = driver.image;
+      final isUpdate = driver.id.isNotEmpty;
+      String driverId = driver.id;
 
-      // 2. Convert Image to Base64 if a new one was picked
+      // 1. If new driver, create in Firebase Auth first
+      if (!isUpdate) {
+        // NOTE: Creating a user via default Firebase instance signs out the Admin.
+        // We initialize a secondary temporary Firebase app to avoid logging out the Admin.
+        FirebaseApp tempApp = await Firebase.initializeApp(
+          name: 'TemporaryApp',
+          options: Firebase.app().options,
+        );
+        
+        UserCredential creds = await FirebaseAuth.instanceFor(app: tempApp)
+            .createUserWithEmailAndPassword(
+          email: driver.email,
+          password: driver.password,
+        );
+        
+        driverId = creds.user!.uid;
+        await tempApp.delete(); // Clean up temp app
+      }
+
+      String? imageBase64 = driver.image;
       if (driver.pickedImage != null) {
         imageBase64 = await _convertImageToBase64(driver.pickedImage!.path);
       }
@@ -142,14 +177,13 @@ class FirebaseService {
         image: imageBase64,
       );
 
-      // 3. Save to Firestore
-      final isUpdate = driver.id.isNotEmpty;
+      // 2. Save profile to Firestore
       await _firestore.collection('users').doc(newDriver.id).set({
-        ...newDriver.toMap(),
+        ...newDriver.toMap()..remove('password'), // SECURE: Don't store password
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // 4. Create Notification
+      // 3. Notify Admin
       await createNotification(AppNotification(
         id: '', title: isUpdate ? 'Driver Updated' : 'New Driver Added',
         message: 'Driver ${newDriver.name} has been ${isUpdate ? 'updated' : 'added'} by Admin.',

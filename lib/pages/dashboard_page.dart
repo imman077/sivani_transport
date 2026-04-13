@@ -73,8 +73,7 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
-    final String role = (user?.role ?? '').trim().toLowerCase();
-    final bool isAdmin = role == 'admin';
+    final bool isAdmin = user?.isAdmin ?? false;
 
     // Simplified layout without redundant Scaffold and nested Column/Expanded
     return ListView(

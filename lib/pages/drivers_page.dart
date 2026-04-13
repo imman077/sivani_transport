@@ -7,6 +7,7 @@ import 'package:sivani_transport/models/driver.dart';
 import 'package:sivani_transport/providers/driver_provider.dart';
 import 'package:sivani_transport/providers/search_provider.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
+import 'package:sivani_transport/pages/history_page.dart';
 
 class DriversPage extends ConsumerStatefulWidget {
   const DriversPage({super.key});
@@ -108,6 +109,17 @@ class _DriversPageState extends ConsumerState<DriversPage> {
                             statusBadge: _buildStatusBadge(driver.isAvailable),
                             onEdit: () => _showAddDriverForm(driver: driver),
                             onDelete: () => _showDeleteConfirmation(driver),
+                            onHistory: () {
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute(
+                                  builder: (_) => HistoryPage(
+                                    entityId: driver.id,
+                                    entityName: driver.name,
+                                    type: HistoryType.driver,
+                                  ),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),

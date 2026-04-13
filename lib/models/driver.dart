@@ -57,7 +57,6 @@ class Driver {
       'name': name,
       'phone': phone,
       'email': email,
-      'password': password,
       'license': license,
       'isAvailable': isAvailable,
       'image': image,

@@ -12,7 +12,9 @@ import 'package:sivani_transport/pages/transporters_page.dart';
 import 'package:sivani_transport/pages/add_vehicle_page.dart';
 import 'package:sivani_transport/pages/profile_page.dart';
 import 'package:sivani_transport/pages/add_trip_page.dart';
+import 'package:sivani_transport/pages/history_page.dart';
 import 'package:sivani_transport/pages/not_found_page.dart';
+import 'package:sivani_transport/pages/notifications_page.dart';
 import 'package:sivani_transport/models/trip.dart';
 import 'package:sivani_transport/models/transporter.dart';
 import 'package:sivani_transport/models/driver.dart';
@@ -33,6 +35,12 @@ final goRouter = GoRouter(
       path: '/profile',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfilePage(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      name: 'notifications',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const NotificationsPage(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
@@ -63,6 +71,19 @@ final goRouter = GoRouter(
                     return AddDriverPage(driver: driver);
                   },
                 ),
+                GoRoute(
+                  path: 'history',
+                  name: 'driver_history',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>;
+                    return HistoryPage(
+                      entityId: extra['entityId'] as String,
+                      entityName: extra['entityName'] as String,
+                      type: HistoryType.driver,
+                    );
+                  },
+                ),
               ],
             ),
           ],
@@ -80,6 +101,19 @@ final goRouter = GoRouter(
                   builder: (context, state) {
                     final vehicle = state.extra as Vehicle?;
                     return AddVehiclePage(vehicle: vehicle);
+                  },
+                ),
+                GoRoute(
+                  path: 'history',
+                  name: 'vehicle_history',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>;
+                    return HistoryPage(
+                      entityId: extra['entityId'] as String,
+                      entityName: extra['entityName'] as String,
+                      type: HistoryType.vehicle,
+                    );
                   },
                 ),
               ],
@@ -124,6 +158,19 @@ final goRouter = GoRouter(
                   builder: (context, state) {
                     final transporter = state.extra as Transporter?;
                     return AddTransporterPage(transporter: transporter);
+                  },
+                ),
+                GoRoute(
+                  path: 'history',
+                  name: 'transporter_history',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>;
+                    return HistoryPage(
+                      entityId: extra['entityId'] as String,
+                      entityName: extra['entityName'] as String,
+                      type: HistoryType.transporter,
+                    );
                   },
                 ),
               ],

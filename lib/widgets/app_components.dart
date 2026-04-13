@@ -10,6 +10,7 @@ import 'package:sivani_transport/services/firebase_service.dart';
 import 'package:sivani_transport/providers/notification_provider.dart';
 import 'package:sivani_transport/models/app_notification.dart';
 import 'package:sivani_transport/providers/auth_provider.dart';
+import 'package:sivani_transport/pages/notifications_page.dart';
 
 class AppTextField extends StatefulWidget {
   final String label;
@@ -364,9 +365,7 @@ class BrandedHeader extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-      ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: Row(
         children: [
           // Elegant Logo Block
@@ -394,20 +393,23 @@ class BrandedHeader extends ConsumerWidget {
           ],
           const Spacer(),
           InkWell(
-            onTap: () => Scaffold.of(context).openEndDrawer(),
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(builder: (context) => const NotificationsPage()),
+            ),
             borderRadius: BorderRadius.circular(14),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                _HeaderAction(
-                  icon: Icons.notifications_none_rounded, 
-                ),
+                _HeaderAction(icon: Icons.notifications_none_rounded),
                 if (unreadCount > 0)
                   Positioned(
                     top: 6,
                     right: 6,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444),
                         borderRadius: BorderRadius.circular(10),
@@ -420,12 +422,15 @@ class BrandedHeader extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
                       child: Text(
                         unreadCount > 9 ? '9+' : unreadCount.toString(),
                         style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 9, 
+                          color: Colors.white,
+                          fontSize: 9,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.5,
                         ),
@@ -439,14 +444,14 @@ class BrandedHeader extends ConsumerWidget {
           // Conditionally show profile icon
           if (showProfile) ...[
             const SizedBox(width: 8),
-          InkWell(
-            onTap: () => context.push('/profile'),
-            borderRadius: BorderRadius.circular(14),
-            child: const _HeaderAction(
-              icon: Icons.person_rounded,
-              isPrimary: true,
+            InkWell(
+              onTap: () => context.push('/profile'),
+              borderRadius: BorderRadius.circular(14),
+              child: const _HeaderAction(
+                icon: Icons.person_rounded,
+                isPrimary: true,
+              ),
             ),
-          ),
           ],
         ],
       ),
@@ -460,7 +465,9 @@ class NotificationDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Drawer(
-      width: MediaQuery.of(context).size.width, // Full screen width as requested
+      width: MediaQuery.of(
+        context,
+      ).size.width, // Full screen width as requested
       backgroundColor: AppColors.background,
       child: SafeArea(
         child: Column(
@@ -470,7 +477,7 @@ class NotificationDrawer extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                   Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
@@ -495,20 +502,18 @@ class NotificationDrawer extends ConsumerWidget {
                   InkWell(
                     onTap: () => Navigator.pop(context),
                     borderRadius: BorderRadius.circular(14),
-                    child: const _HeaderAction(
-                      icon: Icons.close_rounded,
-                    ),
+                    child: const _HeaderAction(icon: Icons.close_rounded),
                   ),
                 ],
               ),
             ),
-            
+
             // Action Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Row(
                 children: [
-                   _NotificationActionButton(
+                  _NotificationActionButton(
                     label: 'Mark all as read',
                     icon: Icons.done_all_rounded,
                     onTap: () async {
@@ -540,20 +545,28 @@ class NotificationDrawer extends ConsumerWidget {
                   return notesAsync.when(
                     data: (notes) {
                       if (notes.isEmpty) {
-                        return const Center(child: Text('No notifications yet', style: TextStyle(color: Colors.grey)));
+                        return const Center(
+                          child: Text(
+                            'No notifications yet',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        );
                       }
                       return ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: notes.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final note = notes[index];
                           return _NotificationItem(note: note);
                         },
                       );
                     },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Center(child: Text('Error loading notifications: $e')),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) =>
+                        Center(child: Text('Error loading notifications: $e')),
                   );
                 },
               ),
@@ -621,20 +634,30 @@ class _NotificationItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bool isUpdate = note.type.contains('updated');
     final bool isDelete = note.type.contains('deleted');
-    
-    final Color iconColor = isDelete ? Colors.red : (isUpdate ? Colors.orange : AppColors.primary);
-    final IconData icon = isDelete ? Icons.delete_sweep_rounded : (isUpdate ? Icons.update_rounded : Icons.add_circle_outline_rounded);
+
+    final Color iconColor = isDelete
+        ? Colors.red
+        : (isUpdate ? Colors.orange : AppColors.primary);
+    final IconData icon = isDelete
+        ? Icons.delete_sweep_rounded
+        : (isUpdate ? Icons.update_rounded : Icons.add_circle_outline_rounded);
 
     return InkWell(
-      onTap: note.isRead ? null : () async {
-        await FirebaseService().markAsRead(note.id);
-      },
+      onTap: note.isRead
+          ? null
+          : () async {
+              await FirebaseService().markAsRead(note.id);
+            },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: note.isRead ? Colors.transparent : iconColor.withValues(alpha: 0.1)),
+          border: Border.all(
+            color: note.isRead
+                ? Colors.transparent
+                : iconColor.withValues(alpha: 0.1),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
@@ -668,7 +691,9 @@ class _NotificationItem extends ConsumerWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
-                            color: note.isRead ? AppColors.textSecondary : AppColors.textPrimary,
+                            color: note.isRead
+                                ? AppColors.textSecondary
+                                : AppColors.textPrimary,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -676,13 +701,21 @@ class _NotificationItem extends ConsumerWidget {
                       const SizedBox(width: 8),
                       Text(
                         _formatDate(note.timestamp),
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade400,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       // Individual Delete Option
                       InkWell(
-                        onTap: () => FirebaseService().deleteNotification(note.id),
-                        child: Icon(Icons.close_rounded, size: 14, color: Colors.grey.shade300),
+                        onTap: () =>
+                            FirebaseService().deleteNotification(note.id),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: Colors.grey.shade300,
+                        ),
                       ),
                     ],
                   ),
@@ -717,10 +750,7 @@ class _HeaderAction extends StatelessWidget {
   final IconData icon;
   final bool isPrimary;
 
-  const _HeaderAction({
-    required this.icon,
-    this.isPrimary = false,
-  });
+  const _HeaderAction({required this.icon, this.isPrimary = false});
 
   @override
   Widget build(BuildContext context) {
@@ -937,7 +967,11 @@ class AppImageWidget extends StatelessWidget {
       width: width,
       height: height,
       color: Colors.grey.shade100,
-      child: Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade300, size: 24),
+      child: Icon(
+        Icons.image_not_supported_outlined,
+        color: Colors.grey.shade300,
+        size: 24,
+      ),
     );
   }
 }
@@ -1002,9 +1036,15 @@ class AppImagePicker extends StatelessWidget {
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                  child: const Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.primary,
+                  ),
                 ),
-                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text(
+                  'Choose from Gallery',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(context, ImageSource.gallery);
@@ -1017,9 +1057,15 @@ class AppImagePicker extends StatelessWidget {
                     color: Colors.teal.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.camera_alt_outlined, color: Colors.teal),
+                  child: const Icon(
+                    Icons.camera_alt_outlined,
+                    color: Colors.teal,
+                  ),
                 ),
-                title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text(
+                  'Take a Photo',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(context, ImageSource.camera);
@@ -1033,9 +1079,18 @@ class AppImagePicker extends StatelessWidget {
                       color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                    child: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.red,
+                    ),
                   ),
-                  title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red)),
+                  title: const Text(
+                    'Remove Photo',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     onImageDeleted();
@@ -1071,10 +1126,12 @@ class AppImagePicker extends StatelessWidget {
               right: 10,
               child: IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.black26,
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 30,
                 ),
+                style: IconButton.styleFrom(backgroundColor: Colors.black26),
               ),
             ),
           ],
@@ -1091,7 +1148,9 @@ class AppImagePicker extends StatelessWidget {
       child: Column(
         children: [
           GestureDetector(
-            onTap: hasImage ? () => _showImagePreview(context) : () => _showImageSourceSheet(context),
+            onTap: hasImage
+                ? () => _showImagePreview(context)
+                : () => _showImageSourceSheet(context),
             onLongPress: () => _showImageSourceSheet(context),
             child: Stack(
               children: [
@@ -1102,7 +1161,9 @@ class AppImagePicker extends StatelessWidget {
                     color: Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: hasImage ? AppColors.primary : Colors.grey.shade200,
+                      color: hasImage
+                          ? AppColors.primary
+                          : Colors.grey.shade200,
                       width: 2.5,
                     ),
                     boxShadow: [
@@ -1117,11 +1178,15 @@ class AppImagePicker extends StatelessWidget {
                     child: pickedImage != null
                         ? Image.file(File(pickedImage!.path), fit: BoxFit.cover)
                         : AppImageWidget(
-                            source: imageUrl, 
+                            source: imageUrl,
                             placeholder: Container(
                               color: Colors.white,
                               child: Center(
-                                child: Icon(placeholderIcon, size: size * 0.4, color: Colors.grey.shade300),
+                                child: Icon(
+                                  placeholderIcon,
+                                  size: size * 0.4,
+                                  color: Colors.grey.shade300,
+                                ),
                               ),
                             ),
                           ),
@@ -1165,10 +1230,16 @@ class AppImagePicker extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () => _showImagePreview(context),
                   icon: const Icon(Icons.visibility_outlined, size: 18),
-                  label: const Text('Preview', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Preview',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                 ),
                 Container(
@@ -1180,10 +1251,16 @@ class AppImagePicker extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () => _showImageSourceSheet(context),
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Change', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Change',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ],
@@ -1268,7 +1345,11 @@ class MasterPageHeader extends StatelessWidget {
                 ),
                 suffixIcon: searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, color: Colors.grey, size: 20),
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
                         onPressed: onSearchCleared,
                       )
                     : null,
@@ -1307,15 +1388,21 @@ class MasterPageHeader extends StatelessWidget {
                         curve: Curves.easeInOut,
                         height: double.infinity,
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary : Colors.transparent,
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
-                          boxShadow: isSelected ? [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            )
-                          ] : null,
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1323,20 +1410,29 @@ class MasterPageHeader extends StatelessWidget {
                             Icon(
                               filter.icon,
                               size: 14,
-                              color: isSelected ? Colors.white : Colors.blueGrey.shade400,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.blueGrey.shade400,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               filter.label,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.blueGrey.shade700,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.blueGrey.shade700,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                                 fontSize: 11,
                               ),
                             ),
                             const SizedBox(width: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? Colors.white.withValues(alpha: 0.15)
@@ -1346,7 +1442,9 @@ class MasterPageHeader extends StatelessWidget {
                               child: Text(
                                 filter.count.toString(),
                                 style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.blueGrey.shade700,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.blueGrey.shade700,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1374,6 +1472,7 @@ class MasterCard extends StatelessWidget {
   final IconData subtitleIcon;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onHistory;
   final Widget? statusBadge;
 
   const MasterCard({
@@ -1384,6 +1483,7 @@ class MasterCard extends StatelessWidget {
     this.subtitleIcon = Icons.phone_rounded,
     required this.onEdit,
     required this.onDelete,
+    this.onHistory,
     this.statusBadge,
   });
 
@@ -1444,7 +1544,11 @@ class MasterCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(subtitleIcon, size: 13, color: Colors.blueGrey.shade300),
+                      Icon(
+                        subtitleIcon,
+                        size: 13,
+                        color: Colors.blueGrey.shade300,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         subtitle,
@@ -1475,6 +1579,15 @@ class MasterCard extends StatelessWidget {
                   const Color(0xFF2563EB),
                   onEdit,
                 ),
+                if (onHistory != null) ...[
+                  const SizedBox(height: 8),
+                  _buildActionButton(
+                    Icons.history_rounded,
+                    const Color(0xFFF0FDF4),
+                    const Color(0xFF16A34A),
+                    onHistory!,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 _buildActionButton(
                   Icons.delete_outline_rounded,
@@ -1490,7 +1603,12 @@ class MasterCard extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color bgColor, Color iconColor, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color bgColor,
+    Color iconColor,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1558,7 +1676,11 @@ class MasterFormPage extends StatelessWidget {
         ),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppColors.textPrimary,
+            size: 20,
+          ),
         ),
         elevation: 0,
       ),
@@ -1591,7 +1713,10 @@ class MasterFormPage extends StatelessWidget {
                 const Spacer(),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -1627,7 +1752,10 @@ class MasterFormPage extends StatelessWidget {
           if (subtitle != null) ...[
             Text(
               subtitle!,
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 32),
           ],
@@ -1644,7 +1772,6 @@ class MasterFormPage extends StatelessWidget {
     );
   }
 }
-
 
 class AppFormHeader extends StatelessWidget {
   final String title;
@@ -1730,7 +1857,9 @@ class AppStepCard extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: (isCompleted ? Colors.green : AppColors.primary).withValues(alpha: 0.1),
+            color: (isCompleted ? Colors.green : AppColors.primary).withValues(
+              alpha: 0.1,
+            ),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
@@ -1793,7 +1922,7 @@ class AppListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeColor = color ?? AppColors.primary;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -1822,7 +1951,7 @@ class AppListItem extends StatelessWidget {
               child: Icon(icon, color: themeColor, size: 20),
             ),
             const SizedBox(width: 16),
-            
+
             // Title & Subtitle section
             Expanded(
               child: Column(
@@ -1852,7 +1981,7 @@ class AppListItem extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // Amount & Actions section
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1965,19 +2094,28 @@ class AppDeleteConfirmation {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete $title', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Delete $title',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: Text('Are you sure you want to remove "$itemName"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               onConfirm();
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

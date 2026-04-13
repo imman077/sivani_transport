@@ -6,6 +6,7 @@ import 'package:sivani_transport/providers/transporter_provider.dart';
 import 'package:sivani_transport/providers/search_provider.dart';
 import 'package:sivani_transport/widgets/app_components.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sivani_transport/pages/history_page.dart';
 
 class TransportersPage extends ConsumerStatefulWidget {
   const TransportersPage({super.key});
@@ -104,6 +105,17 @@ class _TransportersPageState extends ConsumerState<TransportersPage> {
                             ),
                             onEdit: () => _showAddTransporterForm(transporter: transporter),
                             onDelete: () => _showDeleteConfirmation(transporter),
+                            onHistory: () {
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute(
+                                  builder: (_) => HistoryPage(
+                                    entityId: transporter.id,
+                                    entityName: transporter.name,
+                                    type: HistoryType.transporter,
+                                  ),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),

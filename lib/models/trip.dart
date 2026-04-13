@@ -22,6 +22,9 @@ class Trip {
   final List<Map<String, String>> paymentList;
   final List<String> stops;
   final num initialCash;
+  final num transporterAmount;
+  final num commission;
+  final num driverSalary;
   final String status;
   final Color statusColor;
 
@@ -47,6 +50,9 @@ class Trip {
     this.expenseList = const [],
     this.paymentList = const [],
     this.initialCash = 0,
+    this.transporterAmount = 0,
+    this.commission = 0,
+    this.driverSalary = 0,
     this.status = 'Ongoing',
     this.statusColor = Colors.blue,
   })  : _outwardLoads = outwardLoads,
@@ -131,6 +137,9 @@ class Trip {
     List<Map<String, String>>? expenseList,
     List<Map<String, String>>? paymentList,
     num? initialCash,
+    num? transporterAmount,
+    num? commission,
+    num? driverSalary,
     String? status,
     Color? statusColor,
   }) {
@@ -156,6 +165,9 @@ class Trip {
       expenseList: expenseList ?? this.expenseList,
       paymentList: paymentList ?? this.paymentList,
       initialCash: initialCash ?? this.initialCash,
+      transporterAmount: transporterAmount ?? this.transporterAmount,
+      commission: commission ?? this.commission,
+      driverSalary: driverSalary ?? this.driverSalary,
       status: status ?? this.status,
       statusColor: statusColor ?? this.statusColor,
     );
@@ -184,6 +196,9 @@ class Trip {
       'expenseList': expenseList,
       'paymentList': paymentList,
       'initialCash': initialCash,
+      'transporterAmount': transporterAmount,
+      'commission': commission,
+      'driverSalary': driverSalary,
       'status': status,
       'statusColor': statusColor.toARGB32(),
     };
@@ -223,6 +238,9 @@ class Trip {
           .map((p) => Map<String, String>.from(p))
           .toList(),
       initialCash: parseNum(map['initialCash']),
+      transporterAmount: parseNum(map['transporterAmount']),
+      commission: parseNum(map['commission']),
+      driverSalary: parseNum(map['driverSalary']),
       status: map['status'] ?? 'Ongoing',
       statusColor: Color(map['statusColor'] ?? Colors.blue.toARGB32()),
     );

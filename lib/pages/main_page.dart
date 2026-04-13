@@ -69,7 +69,7 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
     }
 
     final user = ref.watch(authProvider);
-    final isAdmin = (user?.role ?? '').trim().toLowerCase() == 'admin';
+    final isAdmin = user?.isAdmin ?? false;
 
     // Real-time Notification Pusher
     ref.listen(notificationProvider, (previous, next) {
@@ -102,7 +102,6 @@ class _MainPageState extends ConsumerState<MainPage> with SingleTickerProviderSt
       extendBody: true,
       resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.background,
-      endDrawer: const NotificationDrawer(),
       body: SafeArea(
         child: Column(
           children: [

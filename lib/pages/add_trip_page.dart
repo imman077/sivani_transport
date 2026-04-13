@@ -28,8 +28,7 @@ class AddTripPage extends ConsumerStatefulWidget {
 
 class _AddTripPageState extends ConsumerState<AddTripPage> {
   String _currentStep = 'summary'; // summary, details, expenses, payment
-  DateTime? _startDate;
-  DateTime? _endDate;
+  // Dates are managed via tripDraftProvider
   bool _isSaving = false;
   bool _isCompleting = false;
   bool _isReopening = false;
@@ -68,20 +67,30 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   late TextEditingController _paymentDescController;
   late TextEditingController _paymentAmountController;
 
+  late TextEditingController _transporterAmountController;
+  late TextEditingController _commissionController;
+  late TextEditingController _driverSalaryController;
+
   String _selectedExpenseLeg = 'A to D'; // A to D, D to A
 
   String _totalKms = '0';
   String _mileage = '0.0';
 
-  List<Map<String, String>> _expenseList = [];
-  List<Map<String, String>> _paymentList = [];
-
   int? _editingExpenseIndex;
   int? _editingPaymentIndex;
+
+  String? _outwardLoadError;
+  String? _returnLoadError;
 
   @override
   void initState() {
     super.initState();
+    // Initialize the draft in the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(tripDraftProvider.notifier).init(widget.trip);
+      _syncControllersWithProvider();
+    });
+
     _startKmController = TextEditingController();
     _endKmController = TextEditingController();
     _dieselController = TextEditingController();
@@ -97,65 +106,79 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     _initialCashController = TextEditingController();
     _paymentDescController = TextEditingController();
     _paymentAmountController = TextEditingController();
+    _transporterAmountController = TextEditingController();
+    _commissionController = TextEditingController();
+    _driverSalaryController = TextEditingController();
 
-    if (widget.isEditing && widget.trip != null) {
-      final trip = widget.trip!;
+    // Listeners to update the provider on every change
+    _startKmController.addListener(() => _updateProvider());
+    _endKmController.addListener(() => _updateProvider());
+    _dieselController.addListener(() => _updateProvider());
+    _initialCashController.addListener(() => _updateProvider());
+    _vehicleController.addListener(() => _updateProvider());
+    _driverController.addListener(() => _updateProvider());
+    _transporterController.addListener(() => _updateProvider());
+    _loadsController.addListener(() => _updateProvider());
+    _returnLoadsController.addListener(() => _updateProvider());
+    _transporterAmountController.addListener(() => _updateProvider());
+    _commissionController.addListener(() => _updateProvider());
+    _driverSalaryController.addListener(() => _updateProvider());
+  }
 
-      _fromController.text = trip.from;
-      _toController.text = trip.to;
-      _vehicleController.text = trip.vehicle;
-      _driverController.text = trip.driver;
-      _selectedDriverId = trip.driverId;
-      _transporterController.text = trip.transporter ?? '';
-      _selectedTransporterId = trip.transporterId;
+  void _syncControllersWithProvider() {
+    final trip = ref.read(tripDraftProvider);
+    if (trip == null) return;
 
-      _startDate = trip.startDate;
-      _endDate = trip.endDate;
+    _fromController.text = trip.from;
+    _toController.text = trip.to;
+    _vehicleController.text = trip.vehicle;
+    _driverController.text = trip.driver;
+    _selectedDriverId = trip.driverId;
+    _transporterController.text = trip.transporter ?? '';
+    _selectedTransporterId = trip.transporterId;
+    _initialCashController.text = trip.initialCash == 0 ? '' : trip.initialCash.toString();
+    _startKmController.text = trip.startKm == 0 ? '' : trip.startKm.toString();
+    _endKmController.text = trip.endKm == 0 ? '' : trip.endKm.toString();
+    _dieselController.text = trip.diesel == 0 ? '' : trip.diesel.toString();
+    _loadsController.text = trip.outwardLoads == 0 ? '' : trip.outwardLoads.toString();
+    _returnLoadsController.text = trip.returnLoads == 0 ? '' : trip.returnLoads.toString();
+    _transporterAmountController.text = trip.transporterAmount == 0 ? '' : trip.transporterAmount.toString();
+    _commissionController.text = trip.commission == 0 ? '' : trip.commission.toString();
+    _driverSalaryController.text = trip.driverSalary == 0 ? '' : trip.driverSalary.toString();
 
-      _initialCashController.text = trip.initialCash.toInt() == 0 ? '' : trip.initialCash.toString();
-      _startKmController.text = trip.startKm.toInt() == 0 ? '' : trip.startKm.toString();
-      _endKmController.text = trip.endKm.toInt() == 0 ? '' : trip.endKm.toString();
-      _dieselController.text = trip.diesel.toInt() == 0 ? '' : trip.diesel.toString();
-      _loadsController.text = trip.outwardLoads.toInt() == 0 ? '' : trip.outwardLoads.toString();
-      _returnLoadsController.text = trip.returnLoads.toInt() == 0 ? '' : trip.returnLoads.toString();
-      _hasReturn = trip.hasReturn;
-
-      if (trip.stops.isNotEmpty) {
-        for (var stop in trip.stops) {
-          _stopControllers.add(TextEditingController(text: stop)..addListener(() => setState(() {})));
-        }
-      } else {
-        // Fallback for old trips
-        _stopControllers.add(TextEditingController(text: trip.from)..addListener(() => setState(() {})));
-        _stopControllers.add(TextEditingController(text: trip.to)..addListener(() => setState(() {})));
-      }
-
-      _expenseList = List.from(
-        trip.expenseList.map((e) => Map<String, String>.from(e)),
-      );
-      _paymentList = List.from(
-        trip.paymentList.map((p) => Map<String, String>.from(p)),
-      );
-
+    _stopControllers.clear();
+    final stops = trip.stops.isNotEmpty ? trip.stops : [trip.from, trip.to];
+    for (var stop in stops) {
+       _stopControllers.add(TextEditingController(text: stop)..addListener(_updateProvider));
     }
+    setState(() {});
+  }
 
-    _startKmController.addListener(_calculateMetrics);
-    _endKmController.addListener(_calculateMetrics);
-    _dieselController.addListener(_calculateMetrics);
-    _initialCashController.addListener(() => setState(() {}));
-    _fromController.addListener(() => setState(() {}));
-    _toController.addListener(() => setState(() {}));
-    _vehicleController.addListener(() => setState(() {}));
-    _driverController.addListener(() => setState(() {}));
-    _transporterController.addListener(() => setState(() {}));
-    _loadsController.addListener(() => setState(() {}));
-    _returnLoadsController.addListener(() => setState(() {}));
+  void _updateProvider() {
+    final state = ref.read(tripDraftProvider);
+    final List<String> stops = _stopControllers.map((c) => c.text).toList();
+    final String from = (stops.isNotEmpty && stops.first.isNotEmpty) ? stops.first : (state?.from ?? '');
+    final String to = (stops.length > 1 && stops.last.isNotEmpty) ? stops.last : (state?.to ?? '');
 
-    if (_stopControllers.isEmpty) {
-      _stopControllers.add(TextEditingController()..addListener(() => setState(() {})));
-      _stopControllers.add(TextEditingController()..addListener(() => setState(() {})));
-    }
-
+    ref.read(tripDraftProvider.notifier).updateField(
+      from: from,
+      to: to,
+      stops: stops,
+      vehicle: _vehicleController.text,
+      driver: _driverController.text,
+      driverId: _selectedDriverId,
+      transporter: _transporterController.text,
+      transporterId: _selectedTransporterId,
+      startKm: double.tryParse(_startKmController.text) ?? 0.0,
+      endKm: double.tryParse(_endKmController.text) ?? 0.0,
+      diesel: double.tryParse(_dieselController.text) ?? 0.0,
+      initialCash: double.tryParse(_initialCashController.text) ?? 0.0,
+      outwardLoads: double.tryParse(_loadsController.text) ?? 0.0,
+      returnLoads: double.tryParse(_returnLoadsController.text) ?? 0.0,
+      transporterAmount: double.tryParse(_transporterAmountController.text) ?? 0.0,
+      commission: double.tryParse(_commissionController.text) ?? 0.0,
+      driverSalary: double.tryParse(_driverSalaryController.text) ?? 0.0,
+    );
     _calculateMetrics();
   }
 
@@ -176,6 +199,9 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     _initialCashController.dispose();
     _paymentDescController.dispose();
     _paymentAmountController.dispose();
+    _transporterAmountController.dispose();
+    _commissionController.dispose();
+    _driverSalaryController.dispose();
     for (var controller in _stopControllers) {
       controller.dispose();
     }
@@ -190,10 +216,27 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     final double total = end - start;
     final double mil = (diesel > 0 && total > 0) ? (total / diesel) : 0;
 
+    final vList = ref.read(vehicleProvider);
+    final selV = vList.firstWhere(
+      (v) => '${v.regNumber} (${v.model})' == _vehicleController.text,
+      orElse: () => Vehicle(id: '', model: '', regNumber: '', fuelType: '', capacity: 0.0),
+    );
+
+    final double outLoad = double.tryParse(_loadsController.text) ?? 0;
+    final double inLoad = double.tryParse(_returnLoadsController.text) ?? 0;
+
     if (mounted) {
       setState(() {
         _totalKms = total > 0 ? total.toStringAsFixed(0) : '0';
         _mileage = mil > 0 ? mil.toStringAsFixed(2) : '0.0';
+        
+        if (selV.capacity > 0) {
+          _outwardLoadError = outLoad > selV.capacity ? 'Max (${selV.capacity} T)' : null;
+          _returnLoadError = inLoad > selV.capacity ? 'Max (${selV.capacity} T)' : null;
+        } else {
+          _outwardLoadError = null;
+          _returnLoadError = null;
+        }
       });
     }
   }
@@ -245,15 +288,39 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   }
 
   void _handleSaveTrip() async {
+    final tripDraft = ref.read(tripDraftProvider);
+    if (tripDraft == null) return;
+
+    // 1. Mandatory Fields Validation
+    if (tripDraft.from.isEmpty || tripDraft.to.isEmpty) {
+      _showToast('Please enter Origin and Destination in Route Details!', isError: true);
+      return;
+    }
+    if (tripDraft.startDate == null) {
+      _showToast('Please select a Start Date!', isError: true);
+      return;
+    }
+    if (tripDraft.vehicle.isEmpty) {
+      _showToast('Please select a Vehicle!', isError: true);
+      return;
+    }
+    if (tripDraft.driver.isEmpty) {
+      _showToast('Please select a Driver!', isError: true);
+      return;
+    }
+    if (tripDraft.outwardLoads <= 0) {
+      _showToast('Please enter Outward Load amount!', isError: true);
+      return;
+    }
+
+    // 2. Capacity Validation
     final vList = ref.read(vehicleProvider);
     final selV = vList.firstWhere(
-      (v) => '${v.regNumber} (${v.model})' == _vehicleController.text,
+      (v) => '${v.regNumber} (${v.model})' == tripDraft.vehicle,
       orElse: () => Vehicle(id: '', model: '', regNumber: '', fuelType: '', capacity: 0.0),
     );
     if (selV.capacity > 0) {
-      final outLoad = double.tryParse(_loadsController.text) ?? 0.0;
-      final inLoad = double.tryParse(_returnLoadsController.text) ?? 0.0;
-      if (outLoad > selV.capacity || inLoad > selV.capacity) {
+      if (tripDraft.outwardLoads > selV.capacity || (tripDraft.hasReturn && tripDraft.returnLoads > selV.capacity)) {
         _showToast('Load exceeds vehicle capacity (${selV.capacity} T)!', isError: true);
         return;
       }
@@ -265,36 +332,10 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
       final userRole = user?.role ?? 'Admin';
       final tripNotifier = ref.read(tripProvider.notifier);
 
-      final newTrip = Trip(
-        id: widget.isEditing ? widget.trip!.id : '',
-        from: _stopControllers.isNotEmpty ? _stopControllers.first.text : _fromController.text,
-        to: _stopControllers.isNotEmpty ? _stopControllers.last.text : _toController.text,
-        stops: _stopControllers.map((c) => c.text).where((s) => s.isNotEmpty).toList(),
-        vehicle: _vehicleController.text,
-        plate: 'ABC-1234',
-        driver: _driverController.text,
-        driverId: _selectedDriverId,
-        transporter: _transporterController.text,
-        transporterId: _selectedTransporterId,
-        startDate: _startDate,
-        endDate: _endDate,
-        startKm: double.tryParse(_startKmController.text) ?? 0.0,
-        endKm: double.tryParse(_endKmController.text) ?? 0.0,
-        diesel: double.tryParse(_dieselController.text) ?? 0.0,
-        outwardLoads: double.tryParse(_loadsController.text) ?? 0.0,
-        returnLoads: double.tryParse(_returnLoadsController.text) ?? 0.0,
-        hasReturn: _hasReturn,
-        expenseList: _expenseList,
-        paymentList: _paymentList,
-        initialCash: double.tryParse(_initialCashController.text) ?? 0.0,
-        status: widget.isEditing ? widget.trip!.status : 'Ongoing',
-        statusColor: widget.isEditing ? widget.trip!.statusColor : Colors.blue,
-      );
-
       if (widget.isEditing) {
-        await tripNotifier.updateTrip(newTrip, performedBy: userRole);
+        await tripNotifier.updateTrip(tripDraft, performedBy: userRole);
       } else {
-        await tripNotifier.addTrip(newTrip, performedBy: userRole);
+        await tripNotifier.addTrip(tripDraft, performedBy: userRole);
       }
       _showToast(widget.isEditing ? 'Trip Updated' : 'Trip Added');
       if (!mounted) return;
@@ -359,38 +400,37 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   }
 
   bool get _isDirty {
+    final draft = ref.read(tripDraftProvider);
+    if (draft == null) return false;
+
     if (widget.isEditing && widget.trip != null) {
       final t = widget.trip!;
 
-      // Compare Stops
-      final currentStops = _stopControllers.map((c) => c.text).toList();
-      final originalStops = t.stops.isNotEmpty ? t.stops : [t.from, t.to];
-      
-      bool stopsChanged = currentStops.length != originalStops.length;
+      bool stopsChanged = draft.stops.length != t.stops.length;
       if (!stopsChanged) {
-        for (int i = 0; i < currentStops.length; i++) {
-          if (currentStops[i] != originalStops[i]) {
+        for (int i = 0; i < draft.stops.length; i++) {
+          if (draft.stops[i] != t.stops[i]) {
             stopsChanged = true;
             break;
           }
         }
       }
 
-      // Check Expenses & Payments Deeply
-      bool listsChanged = _expenseList.length != t.expenseList.length || 
-                          _paymentList.length != t.paymentList.length;
+      bool listsChanged = draft.expenseList.length != t.expenseList.length || 
+                          draft.paymentList.length != t.paymentList.length;
+      
       if (!listsChanged) {
-        for (int i = 0; i < _expenseList.length; i++) {
-          if (_expenseList[i]['amount'] != t.expenseList[i]['amount'] || 
-              _expenseList[i]['title'] != t.expenseList[i]['title']) {
+        for (int i = 0; i < draft.expenseList.length; i++) {
+          if (draft.expenseList[i]['amount'] != t.expenseList[i]['amount'] || 
+              draft.expenseList[i]['title'] != t.expenseList[i]['title']) {
             listsChanged = true;
             break;
           }
         }
         if (!listsChanged) {
-          for (int i = 0; i < _paymentList.length; i++) {
-            if (_paymentList[i]['amount'] != t.paymentList[i]['amount'] || 
-                _paymentList[i]['title'] != t.paymentList[i]['title']) {
+          for (int i = 0; i < draft.paymentList.length; i++) {
+            if (draft.paymentList[i]['amount'] != t.paymentList[i]['amount'] || 
+                draft.paymentList[i]['title'] != t.paymentList[i]['title']) {
               listsChanged = true;
               break;
             }
@@ -399,26 +439,25 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
       }
 
       return stopsChanged ||
-          _vehicleController.text != t.vehicle ||
-          _driverController.text != t.driver ||
-          _startDate != t.startDate ||
-          _endDate != t.endDate ||
-          (double.tryParse(_startKmController.text) ?? 0.0) != t.startKm ||
-          (double.tryParse(_endKmController.text) ?? 0.0) != t.endKm ||
-          (double.tryParse(_dieselController.text) ?? 0.0) != t.diesel ||
-          (double.tryParse(_loadsController.text) ?? 0.0) != t.outwardLoads ||
-          (double.tryParse(_returnLoadsController.text) ?? 0.0) != t.returnLoads ||
-          _hasReturn != t.hasReturn ||
-          (double.tryParse(_initialCashController.text) ?? 0.0) != t.initialCash ||
+          draft.vehicle != t.vehicle ||
+          draft.driver != t.driver ||
+          draft.startDate != t.startDate ||
+          draft.endDate != t.endDate ||
+          draft.startKm != t.startKm ||
+          draft.endKm != t.endKm ||
+          draft.diesel != t.diesel ||
+          draft.outwardLoads != t.outwardLoads ||
+          draft.returnLoads != t.returnLoads ||
+          draft.hasReturn != t.hasReturn ||
+          draft.initialCash != t.initialCash ||
           listsChanged;
     } else {
-      bool hasStopsText = _stopControllers.any((c) => c.text.isNotEmpty);
-      return hasStopsText ||
-          _vehicleController.text.isNotEmpty ||
-          _driverController.text.isNotEmpty ||
-          _startDate != null ||
-          _expenseList.isNotEmpty ||
-          _paymentList.isNotEmpty;
+      return draft.stops.any((s) => s.isNotEmpty) ||
+          draft.vehicle.isNotEmpty ||
+          draft.driver.isNotEmpty ||
+          draft.startDate != null ||
+          draft.expenseList.isNotEmpty ||
+          draft.paymentList.isNotEmpty;
     }
   }
 
@@ -446,19 +485,25 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
   }
 
   Widget _buildCurrentStep(bool detailsReadOnly, bool expensesReadOnly, bool paymentsReadOnly, bool isAdmin, bool isDriver) {
+    final trip = ref.watch(tripDraftProvider);
+    if (trip == null) return const Center(child: CircularProgressIndicator());
+
     switch (_currentStep) {
       case 'details':
-        return _buildRouteDetailsView(detailsReadOnly);
+        return _buildRouteDetailsView(detailsReadOnly, trip);
       case 'expenses':
-        return _buildExpenseEditView(expensesReadOnly);
+        return _buildExpenseEditView(expensesReadOnly, trip);
       case 'payment':
-        return _buildPaymentEditView(paymentsReadOnly);
+        return _buildPaymentEditView(paymentsReadOnly, trip);
       default:
         return _buildSummaryView(isAdmin, isDriver);
     }
   }
 
   Widget _buildSummaryView(bool isAdmin, bool isDriver) {
+    final trip = ref.watch(tripDraftProvider);
+    if (trip == null) return const Center(child: CircularProgressIndicator());
+
     return Column(
       children: [
         _buildAppBar('Trip Summary'),
@@ -470,13 +515,13 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
               children: [
                 _buildStatusSection(),
                 const SizedBox(height: 24),
-                _buildRouteSummary(isAdmin),
+                _buildRouteSummary(trip),
                 const SizedBox(height: 20),
-                _buildFinancialOverview(),
+                _buildFinancialOverview(trip),
                 const SizedBox(height: 20),
                 _buildMetricCards(),
                 const SizedBox(height: 24),
-                _buildActionButtonSection(isAdmin, isDriver),
+                _buildActionButtonSection(trip),
               ],
             ),
           ),
@@ -529,9 +574,10 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildRouteSummary(bool isAdmin) {
-    final from = _stopControllers.first.text;
-    final to = _stopControllers.last.text;
+  Widget _buildRouteSummary(Trip trip) {
+    final stops = trip.stops.isNotEmpty ? trip.stops : [trip.from, trip.to];
+    final from = stops.first;
+    final to = stops.last;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), border: Border.all(color: const Color(0xFFF1F5F9))),
@@ -548,6 +594,28 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
           const SizedBox(height: 20),
           const Divider(height: 1),
           const SizedBox(height: 16),
+          InkWell(
+            onTap: widget.isReadOnly ? null : () => _switchStep('details'),
+            child: Row(
+              children: [
+                Icon(Icons.description_outlined, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Finance Details', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey[800])),
+                      const SizedBox(height: 4),
+                      Text('Tptr: ₹${trip.transporterAmount} | Comm: ₹${trip.commission} | Salary: ₹${trip.driverSalary}', 
+                        style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           InkWell(
             onTap: widget.isReadOnly ? null : () => _switchStep('details'),
             child: Row(
@@ -587,18 +655,18 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildFinancialOverview() {
+  Widget _buildFinancialOverview(Trip trip) {
     double expTotal = 0;
-    for (var e in _expenseList) {
+    for (var e in trip.expenseList) {
       expTotal += double.tryParse(e['amount']!.replaceAll('₹', '')) ?? 0;
     }
     
     double payTotal = 0;
-    for (var p in _paymentList) {
+    for (var p in trip.paymentList) {
       payTotal += double.tryParse(p['amount']!.replaceAll('₹', '')) ?? 0;
     }
     
-    double initialCash = double.tryParse(_initialCashController.text) ?? 0;
+    double initialCash = trip.initialCash.toDouble();
     double netTotal = (initialCash + payTotal) - expTotal;
 
     return Container(
@@ -747,10 +815,25 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildActionButtonSection(bool isAdmin, bool isDriver) {
+  Widget _buildActionButtonSection(Trip trip) {
+    final double initialCashValue = trip.initialCash.toDouble();
+    final bool hasCash = initialCashValue > 0 || trip.paymentList.isNotEmpty;
+
     return Column(
       children: [
-        _buildMenuButton('Expenses Management', 'Add and manage trip expenses', Icons.receipt_long_outlined, Colors.orange, () => _switchStep('expenses')),
+        _buildMenuButton(
+          'Expenses Management', 
+          hasCash ? 'Add and manage trip expenses' : 'Please add payments/cash first', 
+          Icons.receipt_long_outlined, 
+          hasCash ? Colors.orange : Colors.grey, 
+          () {
+            if (hasCash) {
+              _switchStep('expenses');
+            } else {
+              _showToast('Please enter Payments & Cash before adding expenses', isError: true);
+            }
+          }
+        ),
         const SizedBox(height: 12),
         _buildMenuButton('Payments & Cash', 'Manage advances and payments', Icons.payments_outlined, Colors.green, () => _switchStep('payment')),
       ],
@@ -824,7 +907,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildRouteDetailsView(bool isReadOnly) {
+  Widget _buildRouteDetailsView(bool isReadOnly, Trip trip) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -842,9 +925,29 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
             children: [
               Row(
                 children: [
-                  Expanded(child: AppDatePicker(label: 'Start Date', hint: 'Select Date', initialDate: _startDate, onDateSelected: (d) => setState(() => _startDate = d), enabled: !isReadOnly)),
+                  Expanded(
+                    child: AppDatePicker(
+                      label: 'Start Date',
+                      hint: 'Select Date',
+                      initialDate: trip.startDate,
+                      firstDate: DateTime(2020),
+                      onDateSelected: (d) {
+                        ref.read(tripDraftProvider.notifier).updateField(startDate: d);
+                      },
+                      enabled: !isReadOnly
+                    )
+                  ),
                   const SizedBox(width: 16),
-                  Expanded(child: AppDatePicker(label: 'End Date', hint: 'Select Date', initialDate: _endDate, onDateSelected: (d) => setState(() => _endDate = d), enabled: !isReadOnly)),
+                  Expanded(
+                    child: AppDatePicker(
+                      label: 'End Date',
+                      hint: 'Select Date',
+                      initialDate: trip.endDate,
+                      firstDate: trip.startDate ?? DateTime.now(),
+                      onDateSelected: (d) => ref.read(tripDraftProvider.notifier).updateField(endDate: d),
+                      enabled: !isReadOnly && trip.startDate != null
+                    )
+                  ),
                 ],
               ),
               const SizedBox(height: 32),
@@ -896,80 +999,93 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
               if (!isReadOnly) ...[
                 const SizedBox(height: 8),
                 TextButton.icon(
-                  onPressed: () => setState(() => _stopControllers.add(TextEditingController()..addListener(() => setState(() {})))),
+                  onPressed: () => setState(() => _stopControllers.add(TextEditingController()..addListener(_updateProvider))),
                   icon: const Icon(Icons.add_location_alt_outlined, size: 20),
                   label: const Text('Add Another Stop'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.primary, textStyle: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ],
               const SizedBox(height: 16),
-              ref.watch(vehicleProvider).isNotEmpty
-                  ? AppDropdown<String>(
-                      label: 'Vehicle',
-                      hint: 'Select Vehicle',
-                      prefixIcon: Icons.local_shipping_outlined,
-                      value: _vehicleController.text.isEmpty ? null : _vehicleController.text,
-                      readOnly: isReadOnly,
-                      items: ref.watch(vehicleProvider).map((v) {
+              () {
+                final vehicles = ref.watch(vehicleProvider);
+                return AppDropdown<String>(
+                  label: 'Vehicle',
+                  hint: vehicles.isEmpty ? 'No Vehicles Found' : 'Select Vehicle',
+                  prefixIcon: Icons.local_shipping_outlined,
+                  value: _vehicleController.text.isEmpty ? null : _vehicleController.text,
+                  readOnly: isReadOnly || vehicles.isEmpty,
+                  items: vehicles.isEmpty 
+                    ? [const DropdownMenuItem(value: '', enabled: false, child: Text('No Vehicle Found', style: TextStyle(color: Colors.grey)))]
+                    : vehicles.map((v) {
                         final value = '${v.regNumber} (${v.model})';
                         return DropdownMenuItem(value: value, child: Text(value));
                       }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          _vehicleController.text = val;
-                          setState(() {});
-                        }
-                      },
-                    )
-                  : AppTextField(label: 'Vehicle', hint: 'Truck Number', controller: _vehicleController, prefixIcon: Icons.local_shipping_outlined, readOnly: isReadOnly),
+                  onChanged: (val) {
+                    if (val != null && val.isNotEmpty) {
+                      _vehicleController.text = val;
+                      setState(() {});
+                    }
+                  },
+                );
+              }(),
               const SizedBox(height: 24),
               () {
                 final drivers = ref.watch(driversStreamProvider).value ?? [];
-                return drivers.isNotEmpty
-                    ? AppDropdown<String>(
-                        label: 'Driver Name',
-                        hint: 'Select Driver',
-                        prefixIcon: Icons.badge_outlined,
-                        value: _selectedDriverId,
-                        readOnly: isReadOnly,
-                        items: drivers.map((d) {
-                          return DropdownMenuItem(value: d.id, child: Text(d.name));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final d = drivers.firstWhere((d) => d.id == val);
-                            _selectedDriverId = val;
-                            _driverController.text = d.name;
-                            setState(() {});
-                          }
-                        },
-                      )
-                    : AppTextField(label: 'Driver Name', hint: 'John Doe', controller: _driverController, prefixIcon: Icons.badge_outlined, readOnly: isReadOnly);
+                return AppDropdown<String>(
+                  label: 'Driver Name',
+                  hint: drivers.isEmpty ? 'No Drivers Found' : 'Select Driver',
+                  prefixIcon: Icons.badge_outlined,
+                  value: _selectedDriverId,
+                  readOnly: isReadOnly || drivers.isEmpty,
+                  items: drivers.isEmpty 
+                    ? [const DropdownMenuItem(value: '', enabled: false, child: Text('No Driver Found', style: TextStyle(color: Colors.grey)))]
+                    : drivers.map((d) {
+                        return DropdownMenuItem(value: d.id, child: Text(d.name));
+                      }).toList(),
+                  onChanged: (val) {
+                    if (val != null && val.isNotEmpty) {
+                      final d = drivers.firstWhere((d) => d.id == val);
+                      _selectedDriverId = val;
+                      _driverController.text = d.name;
+                      setState(() {});
+                    }
+                  },
+                );
               }(),
               const SizedBox(height: 24),
               () {
                 final transporters = ref.watch(transportersStreamProvider).value ?? [];
-                return transporters.isNotEmpty
-                    ? AppDropdown<String>(
-                        label: 'Transporter Name',
-                        hint: 'Select Transporter',
-                        prefixIcon: Icons.business_outlined,
-                        value: _selectedTransporterId,
-                        readOnly: isReadOnly,
-                        items: transporters.map((t) {
-                          return DropdownMenuItem(value: t.id, child: Text(t.name));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final t = transporters.firstWhere((t) => t.id == val);
-                            _selectedTransporterId = val;
-                            _transporterController.text = t.name;
-                            setState(() {});
-                          }
-                        },
-                      )
-                    : AppTextField(label: 'Transporter Name', hint: 'Company ABC', controller: _transporterController, prefixIcon: Icons.business_outlined, readOnly: isReadOnly);
+                return AppDropdown<String>(
+                  label: 'Transporter Name',
+                  hint: transporters.isEmpty ? 'No Transporters Found' : 'Select Transporter',
+                  prefixIcon: Icons.business_outlined,
+                  value: _selectedTransporterId,
+                  readOnly: isReadOnly || transporters.isEmpty,
+                  items: transporters.isEmpty 
+                    ? [const DropdownMenuItem(value: '', enabled: false, child: Text('No Transporter Found', style: TextStyle(color: Colors.grey)))]
+                    : transporters.map((t) {
+                        return DropdownMenuItem(value: t.id, child: Text(t.name));
+                      }).toList(),
+                  onChanged: (val) {
+                    if (val != null && val.isNotEmpty) {
+                      final t = transporters.firstWhere((t) => t.id == val);
+                      _selectedTransporterId = val;
+                      _transporterController.text = t.name;
+                      setState(() {});
+                    }
+                  },
+                );
               }(),
+              const SizedBox(height: 24),
+              AppTextField(label: 'Transporter Amount (₹)', hint: '0.00', prefixIcon: Icons.currency_rupee_rounded, controller: _transporterAmountController, keyboardType: TextInputType.number, readOnly: isReadOnly),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: AppTextField(label: 'Commission (₹)', hint: '0.00', controller: _commissionController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
+                  const SizedBox(width: 16),
+                  Expanded(child: AppTextField(label: 'Driver Salary (₹)', hint: '0.00', controller: _driverSalaryController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
+                ],
+              ),
               const SizedBox(height: 32),
               const Text('Journey Metrics', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textPrimary)),
               const SizedBox(height: 20),
@@ -985,7 +1101,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
               const SizedBox(height: 24),
               Row(
                   children:[
-                    Expanded(child: AppTextField(label: 'Outward Load (T)', hint: '0.00', controller: _loadsController, keyboardType: TextInputType.number, readOnly: isReadOnly)),
+                    Expanded(child: AppTextField(label: 'Outward Load (T)', hint: '0.00', controller: _loadsController, keyboardType: TextInputType.number, readOnly: isReadOnly, errorText: _outwardLoadError)),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -1005,7 +1121,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
               ),
               if (_hasReturn) ...[
                 const SizedBox(height: 24),
-                AppTextField(label: 'Return Load (T)', hint: '0.00', controller: _returnLoadsController, keyboardType: TextInputType.number, readOnly: isReadOnly),
+                AppTextField(label: 'Return Load (T)', hint: '0.00', controller: _returnLoadsController, keyboardType: TextInputType.number, readOnly: isReadOnly, errorText: _returnLoadError),
               ],
               const SizedBox(height: 40),
             ],
@@ -1015,7 +1131,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildExpenseEditView(bool isReadOnly) {
+  Widget _buildExpenseEditView(bool isReadOnly, Trip trip) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('Trip Expenses', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)), backgroundColor: Colors.white, surfaceTintColor: Colors.white, leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: _onBackAction), bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1))),
@@ -1028,16 +1144,16 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
               if (!isReadOnly) ...[
                 _buildSectionLabel('Add Expense'),
                 const SizedBox(height: 16),
-                _buildExpenseForm(isReadOnly),
+                _buildExpenseForm(isReadOnly, trip),
                 const SizedBox(height: 32),
               ],
               _buildSectionLabel('Expense List'),
               const SizedBox(height: 16),
-              if (_expenseList.isEmpty)
+              if (trip.expenseList.isEmpty)
                 const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('No expenses recorded yet', style: TextStyle(color: Colors.grey))))
               else
-                ...List.generate(_expenseList.length, (index) {
-                  final item = _expenseList[index];
+                ...List.generate(trip.expenseList.length, (index) {
+                  final item = trip.expenseList[index];
                   return AppListItem(
                     title: item['title']!,
                     amount: item['amount']!,
@@ -1050,7 +1166,10 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                       });
                     },
                     onDelete: isReadOnly ? null : () {
-                      AppDeleteConfirmation.show(context, title: 'Expense', itemName: item['title']!, onConfirm: () => setState(() => _expenseList.removeAt(index)));
+                      AppDeleteConfirmation.show(context, title: 'Expense', itemName: item['title']!, onConfirm: () {
+                         final newList = List<Map<String, String>>.from(trip.expenseList)..removeAt(index);
+                         ref.read(tripDraftProvider.notifier).updateField(expenseList: newList);
+                      });
                     },
                   );
                 }),
@@ -1062,7 +1181,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildExpenseForm(bool isReadOnly) {
+  Widget _buildExpenseForm(bool isReadOnly, Trip trip) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.blue.shade50)),
@@ -1097,22 +1216,52 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                 AppToast.show(context, 'Please fill category and amount', isError: true);
                 return;
               }
-              setState(() {
-                if (_editingExpenseIndex == null) {
-                  int count = 0;
-                  for (var e in _expenseList) {
-                    if (e['leg'] == _selectedExpenseLeg && e['title']!.startsWith(_selectedExpenseCategory!)) {
-                      count++;
-                    }
-                  }
-                  _expenseList.add({'title': '${_selectedExpenseCategory!} ${count+1}', 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg});
-                } else {
-                  _expenseList[_editingExpenseIndex!] = {'title': _expenseList[_editingExpenseIndex!]['title']!, 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg};
-                  _editingExpenseIndex = null;
+
+              final newAmount = double.tryParse(_expenseAmountController.text) ?? 0;
+              
+              // Calculate Total Available Cash (Initial Cash + Payments)
+              double totalAvailable = trip.initialCash.toDouble();
+              for (var p in trip.paymentList) {
+                final amountStr = p['amount']?.replaceAll('₹', '').replaceAll(',', '') ?? '0';
+                totalAvailable += double.tryParse(amountStr) ?? 0;
+              }
+              
+              // Calculate Current Total Expenses (excluding the one being edited)
+              double currentExpenses = 0;
+              for (int i = 0; i < trip.expenseList.length; i++) {
+                if (_editingExpenseIndex != i) {
+                  final amountStr = trip.expenseList[i]['amount']?.replaceAll('₹', '').replaceAll(',', '') ?? '0';
+                  currentExpenses += double.tryParse(amountStr) ?? 0;
                 }
-                _expenseAmountController.clear();
-                _selectedExpenseCategory = null;
-              });
+              }
+
+              if (currentExpenses + newAmount > totalAvailable) {
+                final remaining = totalAvailable - currentExpenses;
+                AppToast.show(
+                  context, 
+                  'Insufficient balance! You only have ₹${remaining.toStringAsFixed(2)} remaining.', 
+                  isError: true
+                );
+                return;
+              }
+
+              final newList = List<Map<String, String>>.from(trip.expenseList);
+              if (_editingExpenseIndex == null) {
+                int count = 0;
+                for (var e in newList) {
+                  if (e['leg'] == _selectedExpenseLeg && e['title']!.startsWith(_selectedExpenseCategory!)) {
+                    count++;
+                  }
+                }
+                newList.add({'title': '${_selectedExpenseCategory!} ${count+1}', 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg});
+              } else {
+                newList[_editingExpenseIndex!] = {'title': newList[_editingExpenseIndex!]['title']!, 'amount': '₹${_expenseAmountController.text}', 'leg': _selectedExpenseLeg};
+                _editingExpenseIndex = null;
+              }
+              ref.read(tripDraftProvider.notifier).updateField(expenseList: newList);
+              _expenseAmountController.clear();
+              _selectedExpenseCategory = null;
+              setState(() {});
             },
           ),
         ],
@@ -1120,7 +1269,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildPaymentEditView(bool isReadOnly) {
+  Widget _buildPaymentEditView(bool isReadOnly, Trip trip) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(title: Text(widget.isEditing ? 'Edit Payment & Cash' : 'Add Payment & Cash', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)), backgroundColor: Colors.white, surfaceTintColor: Colors.white, leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: _onBackAction), bottom: const PreferredSize(preferredSize: Size.fromHeight(1), child: Divider(height: 1))),
@@ -1135,14 +1284,14 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                 if (!isReadOnly) ...[
                   _buildSectionLabel('Additional Payments'),
                   const SizedBox(height: 16),
-                  _buildPaymentForm(isReadOnly),
+                  _buildPaymentForm(isReadOnly, trip),
                   const SizedBox(height: 24),
                 ],
-                if (_paymentList.isEmpty)
+                if (trip.paymentList.isEmpty)
                   const Center(child: Text('No additional payments added yet', style: TextStyle(color: Colors.grey, fontSize: 12)))
                 else
-                  ...List.generate(_paymentList.length, (index) {
-                    final item = _paymentList[index];
+                  ...List.generate(trip.paymentList.length, (index) {
+                    final item = trip.paymentList[index];
                     return AppListItem(
                       title: item['title']!,
                       amount: item['amount']!,
@@ -1162,12 +1311,15 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                         });
                       },
                       onDelete: isReadOnly ? null : () {
-                        AppDeleteConfirmation.show(context, title: 'Payment', itemName: item['title']!, onConfirm: () => setState(() => _paymentList.removeAt(index)));
+                        AppDeleteConfirmation.show(context, title: 'Payment', itemName: item['title']!, onConfirm: () {
+                           final newList = List<Map<String, String>>.from(trip.paymentList)..removeAt(index);
+                           ref.read(tripDraftProvider.notifier).updateField(paymentList: newList);
+                        });
                       },
                     );
                   }),
                 const SizedBox(height: 24),
-                _buildFinalSummary(),
+                _buildFinalSummary(trip),
                 const SizedBox(height: 20),
               ],
             ),
@@ -1176,7 +1328,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildPaymentForm(bool isReadOnly) {
+  Widget _buildPaymentForm(bool isReadOnly, Trip trip) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.blue.shade50)),
@@ -1190,7 +1342,7 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
                  setState(() {
                    _selectedPaymentCategory = val;
                    int count = 0;
-                   for (var p in _paymentList) {
+                   for (var p in trip.paymentList) {
                      if (p['title']!.startsWith(val)) {
                        count++;
                      }
@@ -1209,15 +1361,18 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
              label: _editingPaymentIndex == null ? 'Add Payment' : 'Save Changes',
              onPressed: isReadOnly ? null : () {
                if(_paymentDescController.text.isNotEmpty && _paymentAmountController.text.isNotEmpty) {
-                 setState(() {
-                   if(_editingPaymentIndex == null) {
-                     _paymentList.add({'title': _paymentDescController.text, 'amount': '₹${_paymentAmountController.text}'});
-                   } else {
-                     _paymentList[_editingPaymentIndex!] = {'title': _paymentDescController.text, 'amount': '₹${_paymentAmountController.text}'};
-                     _editingPaymentIndex = null;
-                   }
-                    _paymentDescController.clear(); _paymentAmountController.clear(); _selectedPaymentCategory = null;
-                  });
+                 final newList = List<Map<String, String>>.from(trip.paymentList);
+                 if(_editingPaymentIndex == null) {
+                   newList.add({'title': _paymentDescController.text, 'amount': '₹${_paymentAmountController.text}'});
+                 } else {
+                   newList[_editingPaymentIndex!] = {'title': _paymentDescController.text, 'amount': '₹${_paymentAmountController.text}'};
+                   _editingPaymentIndex = null;
+                 }
+                 ref.read(tripDraftProvider.notifier).updateField(paymentList: newList);
+                 _paymentDescController.clear(); 
+                 _paymentAmountController.clear(); 
+                 _selectedPaymentCategory = null;
+                 setState(() {});
                }
              },
            )
@@ -1226,10 +1381,10 @@ class _AddTripPageState extends ConsumerState<AddTripPage> {
     );
   }
 
-  Widget _buildFinalSummary() {
-    double initial = double.tryParse(_initialCashController.text) ?? 0;
+  Widget _buildFinalSummary(Trip trip) {
+    double initial = trip.initialCash.toDouble();
     double add = 0;
-    for (var p in _paymentList) {
+    for (var p in trip.paymentList) {
       add += double.tryParse(p['amount']!.replaceAll('₹', '')) ?? 0;
     }
     

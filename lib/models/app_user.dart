@@ -22,6 +22,8 @@ class AppUser {
     required this.registrationDate,
   });
 
+  bool get isAdmin => role.trim().toLowerCase() == 'admin';
+
   AppUser copyWith({
     String? id,
     String? name,
@@ -52,7 +54,6 @@ class AppUser {
       'name': name,
       'phone': phone,
       'email': email,
-      'password': password,
       'role': role,
       'license': license,
       'image': image,
